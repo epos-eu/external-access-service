@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Default logging configuration for spring needs to be in XML. -->
+<!-- You don't need to do anything for this configuration to be picked up. -->
+<Configuration monitorInterval="60">
+	<Appenders>
+		<Console name="stdout">
+			<PatternLayout
+				pattern="%date %p [%thread] %C{10}.%M(): %m%n%throwable" />
+		</Console>
+	</Appenders>
+	<Loggers>
+		<Root level="INFO" additivity="false">
+			<AppenderRef ref="stdout" />
+		</Root>
+	</Loggers>
+</Configuration>
