@@ -19,8 +19,6 @@ import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -30,9 +28,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.message.BasicNameValuePair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 
 public class URLGeneration {
 
@@ -60,11 +55,13 @@ public class URLGeneration {
 	{
 
 		boolean isSegment = false;
+		boolean isThereQuestionMark = false;
 		StringBuilder sb = new StringBuilder();
 		sb.ensureCapacity(template.length());
 
 		for(int i = 0; i < template.length(); i++) {
 			char c = template.charAt(i);
+			if(c == '?') isThereQuestionMark = true;
 			switch(c) {
 			case '{': {
 				isSegment = true;
@@ -76,13 +73,15 @@ public class URLGeneration {
 				String calcTemplate = calculateTemplate(sb.toString(), map);
 				LOGGER.debug("infos: "+sb.toString()+" "+map.toString());
 				LOGGER.debug("calcTemplate: "+calcTemplate);
+				if(calcTemplate.isEmpty() && isThereQuestionMark) template = template.replace(sb.toString(), "?");
 				if(calcTemplate!=null) {
 					template = template.replace(sb.toString(), calcTemplate);
 					LOGGER.debug("template updated: "+template);
 					if(template.contains("{")) {
 						template = generateURLFromTemplateAndMap(template, map);
 					}
-				}else {
+				}
+				if(calcTemplate.isEmpty()){
 					template = template.replace(sb.toString(), "");
 				}
 				break;
@@ -93,7 +92,7 @@ public class URLGeneration {
 			}
 			}
 		}
-
+		
 		System.out.println("TEMPLATE: "+template);
 
 		return template;
@@ -101,16 +100,17 @@ public class URLGeneration {
 
 
 	private static String calculateTemplate(String segment, Map<String, Object> map) {
-
+		
+		//boolean iHaveQuestionMark = false;
 		segment = segment.replaceAll("\\{", "").replaceAll("\\}", "");
 		LOGGER.info("segmento: "+segment);
 		StringBuilder segmentOutput = new StringBuilder();
 
 		String switchValue = segment.startsWith("%20AND%20")? "%20AND%20" : segment.substring(0, 1);
-		System.out.println(switchValue);
 
 		switch(switchValue) {
 		case "?":
+			//iHaveQuestionMark = true;
 			String[] parameters = segment.replace("?","").split(",");
 			segmentOutput.append("");
 			LOGGER.info("Pre-output: "+segmentOutput.toString());
@@ -128,6 +128,7 @@ public class URLGeneration {
 				LOGGER.info("Loop-End: "+segmentOutput.toString());
 				System.out.println("Loop-End: "+segmentOutput.toString());
 			}
+			//if(iHaveQuestionMark) segmentOutput.insert(0, "?");
 			if(!segmentOutput.toString().equals("")) segmentOutput.insert(0, "?");
 			break;
 		case "&":

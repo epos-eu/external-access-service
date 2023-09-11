@@ -235,16 +235,18 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		switch (responseCode) {
 
 		default : {
+			LOGGER.debug("Default case: "+ responseCode);
 			ErrorMessage errorMessage = new ErrorMessage();
 			errorMessage.setMessage("Received response "+responseCode+" from external webservice");
 			errorMessage.setHttpCode(responseCode);
 			if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
 			if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
 
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+			return ResponseEntity.status(HttpStatus.valueOf(responseCode))
 					.body(Utils.gson.toJsonTree(errorMessage).toString());
 		}
 		case "OK" : {
+			LOGGER.debug("OK case: "+ responseCode);
 			HttpHeaders httpHeaders = new HttpHeaders();
 
 			if(handlerResponse.containsKey("redirect-url") 

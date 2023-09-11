@@ -6,11 +6,9 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -29,12 +26,9 @@ import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import okhttp3.CipherSuite;
-import okhttp3.ConnectionSpec;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-import okhttp3.TlsVersion;
 
 public class ExternalServicesRequest {
 
@@ -51,15 +45,6 @@ public class ExternalServicesRequest {
         if (instance == null) {
             instance = new ExternalServicesRequest();
             builder = new OkHttpClient.Builder();
-            /*ConnectionSpec spec = new ConnectionSpec.Builder(ConnectionSpec.COMPATIBLE_TLS)
-                    .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_1, TlsVersion.TLS_1_0)
-                    .cipherSuites(
-                            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-                            CipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-                            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA)
-                    .build();
-            builder.connectionSpecs(Collections.singletonList(spec));*/
             sslContext = getLenientSSLContext();
             try {
 				builder.sslSocketFactory(new CustomSSLSocketFactory(), defaultTrustManager());
@@ -77,19 +62,6 @@ public class ExternalServicesRequest {
         }
         return instance;
     }
-	
-	public static void main(String[] args) {
-		String url = "https://insar.irea.cnr.it/geoserver/wms?service=WMS&version=1.3.0&REQUEST=GetMap&layers=geonode%3Adtslos_cnrirea_20160610_20220721_wrvc&width=256&height=256&srs=CRS%3A84&format=image%2Fjpeg&BBOX=12.2423802309373,40.535845278100204,13,41.50&transparent=true";
-		
-		HashMap<String,Object> responseMap = new HashMap<String, Object>();
-		try {
-			responseMap.put("content", ExternalServicesRequest.getInstance().requestPayloadImage(url));
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		System.out.println(responseMap);
-	}
 
 	public String requestPayload(String url) throws IOException {
 		Request request = new Request.Builder()

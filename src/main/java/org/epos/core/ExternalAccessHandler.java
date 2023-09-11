@@ -1,12 +1,10 @@
 package org.epos.core;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.lang3.EnumUtils;
 import org.epos.api.utility.ContentType;
 import org.epos.core.beans.Distribution;
 import org.epos.core.beans.ServiceParameter;
@@ -118,7 +116,7 @@ public class ExternalAccessHandler {
 				LOGGER.error(e.getMessage());
 			}*/
 
-			LOGGER.info("URL to be executed: "+compiledUrl);
+			LOGGER.debug("URL to be executed: "+compiledUrl);
 
 			System.out.println("URL to be executed: "+compiledUrl);
 
@@ -136,9 +134,9 @@ public class ExternalAccessHandler {
 
 			if (payObj.getAsJsonObject().has("format") 
 					&& checkFormat(payObj.get("format").getAsString(), compiledUrl.contains("WFS"))) {
-				LOGGER.info("Direct request");
+				LOGGER.debug("Direct request");
 				if(conversion==null) {
-					LOGGER.info("Is native GeoJSON or CovJSON");
+					LOGGER.debug("Is native GeoJSON or CovJSON");
 					try {
 						String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
 						responseMap.remove("content");
@@ -153,7 +151,7 @@ public class ExternalAccessHandler {
 					return responseMap;
 				}
 				else {
-					LOGGER.info("Is not native GeoJSON or CovJSON");
+					LOGGER.debug("Is not native GeoJSON or CovJSON");
 					try {
 						Map<String, String> parametersMap = new HashMap<>();
 						parametersMap.put("operation", conversion.get("operation").getAsString());
@@ -171,7 +169,7 @@ public class ExternalAccessHandler {
 					}
 				}
 			} else  {
-				LOGGER.info("Redirect");
+				LOGGER.debug("Redirect");
 				try {
 					return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
 				} catch (Exception ex) {
