@@ -235,6 +235,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		switch (responseCode) {
 
 		default : {
+			try {
 			LOGGER.debug("Default case: "+ responseCode);
 			ErrorMessage errorMessage = new ErrorMessage();
 			errorMessage.setMessage("Received response "+responseCode+" from external webservice");
@@ -246,6 +247,9 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 
 			return ResponseEntity.status(HttpStatus.valueOf(responseCode))
 					.body(Utils.gson.toJsonTree(errorMessage).toString());
+			}catch(Exception e) {
+				e.printStackTrace();
+			}
 		}
 		case "OK" : {
 			LOGGER.debug("OK case: "+ responseCode);
