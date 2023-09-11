@@ -241,6 +241,8 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 			errorMessage.setHttpCode(responseCode);
 			if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
 			if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
+			
+			System.out.println(errorMessage.toString());
 
 			return ResponseEntity.status(HttpStatus.valueOf(responseCode))
 					.body(Utils.gson.toJsonTree(errorMessage).toString());
