@@ -94,6 +94,7 @@ public class URLGeneration {
 		}
 		
 		System.out.println("TEMPLATE: "+template);
+		if(template.endsWith("?")) template = template.substring(0, template.length() - 1);
 
 		return template;
 	}
