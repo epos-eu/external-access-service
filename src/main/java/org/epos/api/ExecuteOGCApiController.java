@@ -125,6 +125,17 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 						.body(base64image);
 			}
 			
+			if(compiledUrl.contains("GetTile")) {
+				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
+				String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
+				httpHeaders.setContentLength(base64image.length());
+				httpHeaders.remove("Transfer-Encoding");
+				
+				return ResponseEntity.status(HttpStatus.OK)
+						.headers(httpHeaders)
+						.body(base64image);
+			}
+			
 			return ResponseEntity.status(HttpStatus.OK)
 					.headers(httpHeaders)
 					.body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));

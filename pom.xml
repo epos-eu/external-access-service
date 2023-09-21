@@ -100,7 +100,7 @@
 		<dependency>
 			<groupId>org.epos-eu.ics-c</groupId>
 			<artifactId>router-framework</artifactId>
-			<version>0.1.7</version>
+			<version>1.0.3</version>
 			<!-- epos used log4j2 via slf4j -->
 			<exclusions>
 				<exclusion>
