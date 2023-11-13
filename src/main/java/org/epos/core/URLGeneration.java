@@ -92,7 +92,7 @@ public class URLGeneration {
 			}
 			}
 		}
-		
+
 		System.out.println("TEMPLATE: "+template);
 		if(template.endsWith("?")) template = template.substring(0, template.length() - 1);
 
@@ -101,7 +101,7 @@ public class URLGeneration {
 
 
 	private static String calculateTemplate(String segment, Map<String, Object> map) {
-		
+
 		//boolean iHaveQuestionMark = false;
 		segment = segment.replaceAll("\\{", "").replaceAll("\\}", "");
 		LOGGER.info("segmento: "+segment);
@@ -199,9 +199,11 @@ public class URLGeneration {
 					segmentOutput.append(","+map.get(parameters11[i].trim()));
 				}
 			}try {
-				String aux =  segmentOutput.substring(1, segmentOutput.length());
-				segmentOutput = new StringBuilder();
-				segmentOutput.append(aux);
+				if(segmentOutput.length()>0) {
+					String aux =  segmentOutput.substring(1, segmentOutput.length());
+					segmentOutput = new StringBuilder();
+					segmentOutput.append(aux);
+				}
 			}catch(Exception e) {
 				LOGGER.error(e.getMessage());
 				return null;
