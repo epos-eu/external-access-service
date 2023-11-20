@@ -114,6 +114,26 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 		}
 		
 		try {
+			
+			if(compiledUrl.contains("GetFeatureInfo") && conversion!=null) {
+				Map<String, Object> responseMap = new HashMap<>();
+				Map<String, String> parametersMap = new HashMap<>();
+				parametersMap.put("operation", conversion.get("operation").getAsString());
+				parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
+				parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
+				responseMap.put("parameters", parametersMap);
+				String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+				responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
+				response = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), responseMap);
+				
+				JsonObject outputResponse = Utils.gson.fromJson(response.getPayloadAsPlainText().get(), JsonObject.class).getAsJsonObject();
+
+				return ResponseEntity.status(HttpStatus.OK)
+						.headers(httpHeaders)
+						.body(outputResponse.get("content").getAsJsonObject().toString());
+			}
+				
+			
 			if(compiledUrl.contains("GetMap")) {
 				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
 				String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
