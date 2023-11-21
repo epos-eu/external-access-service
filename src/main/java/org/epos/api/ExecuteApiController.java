@@ -1,31 +1,33 @@
 package org.epos.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
+
 import org.apache.commons.lang3.StringUtils;
+import org.epos.api.beans.Distribution;
+import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
+import org.epos.core.ExecuteItemGenerationJPA;
 import org.epos.core.ExternalAccessHandler;
-import org.epos.core.beans.CacheData;
-import org.epos.core.beans.ErrorMessage;
-import org.epos.core.beans.repositories.CacheDataRepository;
+import org.epos.core.PluginGeneration;
 import org.epos.router_framework.domain.Actor;
 import org.epos.router_framework.domain.BuiltInActorType;
-import org.epos.router_framework.domain.Response;
 import org.epos.router_framework.types.ServiceType;
+import org.epos.router_framework.domain.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import javax.validation.constraints.*;
 import javax.validation.Valid;
@@ -35,7 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
@@ -53,16 +54,11 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 
 	private final HttpServletRequest request;
 
-    private final CacheDataRepository cacheDataRepository;
-
-	private static Gson gson = new Gson();
-
 	@org.springframework.beans.factory.annotation.Autowired
-	public ExecuteApiController(ObjectMapper objectMapper, HttpServletRequest request, CacheDataRepository cacheDataRepository) {
+	public ExecuteApiController(ObjectMapper objectMapper, HttpServletRequest request) {
 		super(request);
 		this.objectMapper = objectMapper;
 		this.request = request;
-		this.cacheDataRepository = cacheDataRepository;
 	}
 
 	private void addDecodedParamToMap(final String paramKey, final String paramValue,
@@ -89,18 +85,18 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		}
 	}
 
-	public ResponseEntity<String> tcsconnectionsExecuteGet(@NotNull @Parameter(in = ParameterIn.QUERY, description = "the id of item to be executed" ,required=true,schema=@Schema()) @Valid @RequestParam(value = "id", required = true) String id, @Parameter(in = ParameterIn.QUERY, description = "useDefaults" ,schema=@Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults,@Parameter(in = ParameterIn.QUERY, description = "output format requested" ,schema=@Schema()) @Valid @RequestParam(value = "format", required = false) String format,@Parameter(in = ParameterIn.QUERY, description = "startDate" ,schema=@Schema()) @Valid @RequestParam(value = "startDate", required = false) String startDate,@Parameter(in = ParameterIn.QUERY, description = "endDate" ,schema=@Schema()) @Valid @RequestParam(value = "endDate", required = false) String endDate,@Parameter(in = ParameterIn.QUERY, description = "bbox" ,schema=@Schema()) @Valid @RequestParam(value = "bbox", required = false) String bbox,@Parameter(in = ParameterIn.QUERY, description = "params" ,schema=@Schema()) @Valid @RequestParam(value = "params", required = false) String params) {
+	public ResponseEntity<String> tcsconnectionsExecuteGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id, @Parameter(in = ParameterIn.QUERY, description = "useDefaults" ,schema=@Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults,@Parameter(in = ParameterIn.QUERY, description = "output format requested" ,schema=@Schema()) @Valid @RequestParam(value = "format", required = false) String format,@Parameter(in = ParameterIn.QUERY, description = "startDate" ,schema=@Schema()) @Valid @RequestParam(value = "startDate", required = false) String startDate,@Parameter(in = ParameterIn.QUERY, description = "endDate" ,schema=@Schema()) @Valid @RequestParam(value = "endDate", required = false) String endDate,@Parameter(in = ParameterIn.QUERY, description = "bbox" ,schema=@Schema()) @Valid @RequestParam(value = "bbox", required = false) String bbox,@Parameter(in = ParameterIn.QUERY, description = "params" ,schema=@Schema()) @Valid @RequestParam(value = "params", required = false) String params) {
 		
 		final Map<String, Object> requestParameters = decodedRequestParameters(id, useDefaults, format, startDate, endDate, bbox, params);  
 
 		try {
-			if(!StringUtils.isBlank(startDate)) Utils.convert(startDate, Utils.EPOS_internal_format, Utils.EPOS_internal_format);
-			if(!StringUtils.isBlank(endDate)) Utils.convert(endDate, Utils.EPOS_internal_format, Utils.EPOS_internal_format);
+			if(!StringUtils.isBlank(startDate)) Utils.convertDateUsingPattern(startDate, Utils.EPOSINTERNALFORMAT, Utils.EPOSINTERNALFORMAT);
+			if(!StringUtils.isBlank(endDate)) Utils.convertDateUsingPattern(endDate, Utils.EPOSINTERNALFORMAT, Utils.EPOSINTERNALFORMAT);
 		} catch (ParseException e1) {
 			return new ResponseEntity<String>(HttpStatus.BAD_REQUEST);
 		}
 
-		return redirectRequest(ServiceType.EXTERNAL, requestParameters, cacheDataRepository);
+		return redirectRequest(requestParameters);
 	}
 
 	private Map<String, Object> decodedRequestParameters(//
@@ -144,39 +140,36 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		return requestParameters;
 	}
 
-	private ResponseEntity<String> redirectRequest(ServiceType service, Map<String, Object> requestParams, CacheDataRepository cacheDataRepository) {
+	private ResponseEntity<String> redirectRequest(Map<String, Object> requestParams) {
+
+		Distribution response = ExecuteItemGenerationJPA.generate(requestParams);
+		Response conversionResponse = null;
 		
-		String cacheId = StringUtils.join(requestParams);
-		String cachedResponse = null;
-
-		try {
-			Optional<CacheData> optionalCacheData = cacheDataRepository.findById(cacheId);
-			if (optionalCacheData.isPresent()) cachedResponse = optionalCacheData.get().getValue();
-		}catch(Exception e) {
-			LOGGER.error("Unable to connect to Redis server, skipping caching mechanism, Cause: "+e.getLocalizedMessage());
-		}
-
-		Response response = null;
+		JsonObject conversion = null;
 		
-		if(cachedResponse==null) {
-			response = doRequest(service, requestParams);
-			try {
-				CacheData cacheData = new CacheData(cacheId, response.getPayloadAsPlainText().get());
-				cacheDataRepository.save(cacheData);
-			}catch(Exception e) {
-				LOGGER.error("Unable to connect to Redis server, skipping caching mechanism, Cause: "+e.getLocalizedMessage());
+		if(response.getOperationid()!=null) {
+			JsonObject conversionParameters = new JsonObject();
+			conversionParameters.addProperty("type", "plugins");
+			conversionParameters.addProperty("operation", response.getOperationid());
 
+			JsonArray softwareConversionList = PluginGeneration.generate(new JsonObject(), conversionParameters, "plugin");
+			if(!softwareConversionList.isJsonNull() && !softwareConversionList.get(0).isJsonNull()) {
+				JsonObject conversionInner = softwareConversionList.get(0).getAsJsonObject();
+				JsonObject singleConversion = new JsonObject();
+				singleConversion.addProperty("operation", response.getOperationid());
+				singleConversion.addProperty("requestContentType", conversionInner
+						.get("action").getAsJsonObject()
+						.get("object").getAsJsonObject()
+						.get("encodingFormat").getAsString());
+				singleConversion.addProperty("responseContentType", conversionInner
+						.get("action").getAsJsonObject()
+						.get("result").getAsJsonObject()
+						.get("encodingFormat").getAsString());
+				conversion = singleConversion;
 			}
 		}
-		JsonObject payObj = gson.fromJson((cachedResponse==null)? response.getPayloadAsPlainText().get() : cachedResponse, JsonObject.class);
-		String itemID = payObj.get("id").getAsString();
-		JsonObject conversion = null;
 
-		if (payObj.has("conversion")) {
-			conversion = payObj.get("conversion").getAsJsonObject();
-		}
-
-		Map<String,Object> handlerResponse = ExternalAccessHandler.handle((cachedResponse==null)? response.getPayloadAsPlainText().get() : cachedResponse, "execute");
+		Map<String,Object> handlerResponse = ExternalAccessHandler.handle(response, "execute", conversion, requestParams);
 
 		LOGGER.info(handlerResponse.toString());
 
@@ -187,13 +180,20 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		} else {
 			if(handlerResponse.get("content")==null) {
 				ErrorMessage errorMessage = new ErrorMessage();
-				errorMessage.setMessage("Error missing content from "+itemID+" "+ handlerResponse);
+				errorMessage.setMessage("Error missing content from "+response.getDistributionid()+" "+ handlerResponse);
 				return ResponseEntity.status(HttpStatus.NO_CONTENT)
 						.body(Utils.gson.toJsonTree(errorMessage).toString());
 			}
 			if(conversion!=null)
-				response = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), handlerResponse);
-
+				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), handlerResponse);
+			
+			if(conversion!=null && conversionResponse==null) {
+				ErrorMessage errorMessage = new ErrorMessage();
+				errorMessage.setMessage("Error missing conversion from "+response.getDistributionid()+" "+ handlerResponse);
+				return ResponseEntity.status(HttpStatus.NO_CONTENT)
+						.body(Utils.gson.toJsonTree(errorMessage).toString());
+			}
+			
 			HttpHeaders httpHeaders = new HttpHeaders();
 			if(conversion!=null)
 				httpHeaders.add("content-type", conversion.get("responseContentType").getAsString().contains("/")? conversion.get("responseContentType").getAsString() : "application/"+conversion.get("responseContentType").getAsString());
@@ -201,16 +201,16 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 				httpHeaders.add("content-type", "application/geo+json");
 
 			JsonObject outputResponse = null;
-			if(conversion!=null) {
+			if(conversion!=null && conversionResponse!=null) {
 				try {
-					outputResponse = Utils.gson.fromJson(response.getPayloadAsPlainText().get(), JsonObject.class).getAsJsonObject();
+					outputResponse = Utils.gson.fromJson(conversionResponse.getPayloadAsPlainText().get(), JsonObject.class).getAsJsonObject();
 
 					return ResponseEntity.status(HttpStatus.OK)
 							.headers(httpHeaders)
 							.body(outputResponse.get("content").getAsJsonObject().toString());
 				}catch(Exception e) {
 					ErrorMessage errorMessage = new ErrorMessage();
-					errorMessage.setMessage("Error missing content from "+itemID+" "+ e.getLocalizedMessage());
+					errorMessage.setMessage("Error missing content from "+response.getDistributionid()+" "+ e.getLocalizedMessage());
 					return ResponseEntity.status(HttpStatus.NO_CONTENT)
 							.headers(httpHeaders)
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
@@ -224,7 +224,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 							.body(outputResponse.get("content").getAsJsonObject().toString());
 				}catch(Exception e) {
 					ErrorMessage errorMessage = new ErrorMessage();
-					errorMessage.setMessage("Error missing content from "+itemID+" "+ e.getLocalizedMessage());
+					errorMessage.setMessage("Error missing content from "+response.getDistributionid()+" "+ e.getLocalizedMessage());
 					return ResponseEntity.status(HttpStatus.NO_CONTENT)
 							.headers(httpHeaders)
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
@@ -266,7 +266,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 				String contentType = (String) handlerResponse.get("content-type");
 				if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
 					ErrorMessage errorMessage = new ErrorMessage();
-					errorMessage.setMessage("Error on get redirect url of an external webservice: "+itemID+ " causing "+httpStatusCode);
+					errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
 					errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
 					if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
 					if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());

@@ -1,4 +1,4 @@
-package org.epos.core.beans;
+package org.epos.api.beans;
 
 public class ErrorMessage {
 	

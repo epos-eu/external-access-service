@@ -40,14 +40,14 @@ public class RoutingConfiguration {
     public RpcRouter router() 
     {
         Optional<RpcRouter> router = RpcRouterBuilder.instance(Actor.getInstance(BuiltInActorType.TCS_CONNECTOR.verbLabel()).get())
-    			.addServiceSupport(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.DB_CONNECTOR.verbLabel()).get())
+    			.addServiceSupport(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER.verbLabel()).get())
     			.setNumberOfPublishers(numOfPublishers)
     			.setNumberOfConsumers(numOfConsumers)
     			.setRoutingKeyPrefix("externalaccess")
     			.build();
         
         return router.orElseThrow(() -> new BeanInitializationException(
-        		"Router instance for WebAPI component could not be instantiated"));
+        		"Router instance for External Access Service component could not be instantiated"));
     }
 
 }
