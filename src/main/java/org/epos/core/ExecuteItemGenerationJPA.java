@@ -3,14 +3,21 @@ package org.epos.core;
 import org.epos.api.beans.Distribution;
 import org.epos.api.beans.ServiceParameter;
 import org.epos.api.beans.TemporalCoverage;
+import org.epos.api.utility.Utils;
 import org.epos.eposdatamodel.State;
 import org.epos.handler.dbapi.model.*;
 import org.epos.handler.dbapi.service.DBService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.gson.JsonObject;
+
 import javax.persistence.EntityManager;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -56,16 +63,16 @@ public class ExecuteItemGenerationJPA {
 		EDMOperation op = null;
 		if (distributionSelected.getAccessURLByInstanceId() != null) {
 			op = distributionSelected.getAccessURLByInstanceId().stream()
-			.map(EDMDistributionAccessURL::getOperationByInstanceOperationId).collect(Collectors.toList()).get(0);
+					.map(EDMDistributionAccessURL::getOperationByInstanceOperationId).collect(Collectors.toList()).get(0);
 		} else {
 			return null;
 		}
-		
+
 		if (op == null && distributionSelected.getAccessService() != null) return null;
 
 
 		Distribution distribution = new Distribution();
-		
+
 		if (distributionSelected.getType() != null) {
 			String[] type = distributionSelected.getType().split("\\/");
 			distribution.setType(type[type.length - 1]);
@@ -117,6 +124,47 @@ public class ExecuteItemGenerationJPA {
 					sp.setRequired(mp.getRequired());
 					sp.setType(mp.getRange() != null ? mp.getRange().replace("xsd:", "") : null);
 					sp.setValue(null);
+					if (parameters.containsKey("useDefaults") && Boolean.getBoolean(parameters.get("useDefaults").toString())) {
+						if (mp.getDefaultvalue() != null) {
+							if (mp.getProperty() != null && mp.getValuepattern() != null) {
+								if (mp.getProperty().equals("schema:startDate") || mp.getProperty().equals("schema:endDate")) {
+									try {
+										sp.setValue(Utils.convertDateUsingPattern(mp.getDefaultvalue(), null, mp.getValuepattern()));
+									} catch (ParseException e) {
+										LOGGER.error(e.getLocalizedMessage());
+									}
+								}
+							} else sp.setValue(mp.getDefaultvalue());
+						} else sp.setValue(null);
+					} else {
+						if(parameters.containsKey("params")) {
+							JsonObject params = Utils.gson.fromJson(parameters.get("params").toString(), JsonObject.class);
+							if (params.has(mp.getVariable()) && !params.get(mp.getVariable()).getAsString().equals("")) {
+								if (mp.getProperty() != null && mp.getValuepattern() != null) {
+									if (mp.getProperty().equals("schema:startDate") || mp.getProperty().equals("schema:endDate")) {
+										try {
+											sp.setValue(Utils.convertDateUsingPattern(params.get(mp.getVariable()).getAsString(), null, mp.getValuepattern()));
+										} catch (ParseException e) {
+											LOGGER.error(e.getLocalizedMessage());
+										}
+									}
+								} else if (mp.getProperty() == null && mp.getValuepattern() != null) {
+									if (Utils.checkStringPattern(params.get(mp.getVariable()).getAsString(), mp.getValuepattern()))
+										sp.setValue(params.get(mp.getVariable()).getAsString());
+									else if (!Utils.checkStringPattern(params.get(mp.getVariable()).getAsString(), mp.getValuepattern()) && Utils.checkStringPatternSingleQuotes(mp.getValuepattern()))
+										sp.setValue("'" + params.get(mp.getVariable()).getAsString() + "'");
+									else sp.setValue(params.get(mp.getVariable()).getAsString()); //return new JsonObject();
+								} else sp.setValue(params.get(mp.getVariable()).getAsString());
+							} else sp.setValue(null);
+						}
+					}
+					if(sp.getValue()!=null)
+						try {
+							sp.setValue(URLEncoder.encode(sp.getValue(), StandardCharsets.UTF_8.toString()));
+						} catch (UnsupportedEncodingException e) {
+							LOGGER.error(e.getLocalizedMessage());
+						}
+
 					sp.setValuePattern(mp.getValuepattern());
 					sp.setVersion(null);
 					sp.setReadOnlyValue(mp.getReadOnlyValue());
@@ -126,8 +174,8 @@ public class ExecuteItemGenerationJPA {
 			}
 		}
 		em.close();
-		
+
 		return distribution;
 	}
-	
+
 }
