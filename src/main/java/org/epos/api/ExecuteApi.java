@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,10 +42,10 @@ public interface ExecuteApi {
         @ApiResponse(responseCode = "403", description = "Forbidden"),
         
         @ApiResponse(responseCode = "404", description = "Not Found") })
-    @RequestMapping(value = "/execute",
+    @RequestMapping(value = "/execute/{instance_id}",
         produces = { "*/*" }, 
         method = RequestMethod.GET)
-    ResponseEntity<String> tcsconnectionsExecuteGet(@NotNull @Parameter(in = ParameterIn.QUERY, description = "the id of item to be executed" ,required=true,schema=@Schema()) @Valid @RequestParam(value = "id", required = true) String id, @Parameter(in = ParameterIn.QUERY, description = "useDefaults" ,schema=@Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults , @Parameter(in = ParameterIn.QUERY, description = "output format requested" ,schema=@Schema()) @Valid @RequestParam(value = "format", required = false) String format, @Parameter(in = ParameterIn.QUERY, description = "startDate" ,schema=@Schema()) @Valid @RequestParam(value = "startDate", required = false) String startDate, @Parameter(in = ParameterIn.QUERY, description = "endDate" ,schema=@Schema()) @Valid @RequestParam(value = "endDate", required = false) String endDate, @Parameter(in = ParameterIn.QUERY, description = "bbox" ,schema=@Schema()) @Valid @RequestParam(value = "bbox", required = false) String bbox, @Parameter(in = ParameterIn.QUERY, description = "params" ,schema=@Schema()) @Valid @RequestParam(value = "params", required = false) String params);
+    ResponseEntity<String> tcsconnectionsExecuteGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id, @Parameter(in = ParameterIn.QUERY, description = "useDefaults" ,schema=@Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults , @Parameter(in = ParameterIn.QUERY, description = "output format requested" ,schema=@Schema()) @Valid @RequestParam(value = "format", required = false) String format, @Parameter(in = ParameterIn.QUERY, description = "startDate" ,schema=@Schema()) @Valid @RequestParam(value = "startDate", required = false) String startDate, @Parameter(in = ParameterIn.QUERY, description = "endDate" ,schema=@Schema()) @Valid @RequestParam(value = "endDate", required = false) String endDate, @Parameter(in = ParameterIn.QUERY, description = "bbox" ,schema=@Schema()) @Valid @RequestParam(value = "bbox", required = false) String bbox, @Parameter(in = ParameterIn.QUERY, description = "params" ,schema=@Schema()) @Valid @RequestParam(value = "params", required = false) String params);
 
 }
 

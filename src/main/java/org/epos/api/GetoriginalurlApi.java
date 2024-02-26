@@ -14,10 +14,12 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-10-11T14:51:06.469Z[GMT]")
 @Validated
@@ -40,10 +42,10 @@ public interface GetoriginalurlApi {
         @ApiResponse(responseCode = "403", description = "Forbidden"),
         
         @ApiResponse(responseCode = "404", description = "Not Found") })
-    @RequestMapping(value = "/getoriginalurl",
+    @RequestMapping(value = "/getoriginalurl/{instance_id}",
         produces = { "*/*" }, 
         method = RequestMethod.GET)
-    ResponseEntity<String> tcsconnectionGetOriginalUrlGet(@Parameter(in = ParameterIn.QUERY, description = "id" ,schema=@Schema()) @Valid @RequestParam(value = "id", required = true) String id, @Parameter(in = ParameterIn.QUERY, description = "useDefaults" ,schema=@Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults, @Parameter(in = ParameterIn.QUERY, description = "params" ,schema=@Schema()) @Valid @RequestParam(value = "params", required = false) String params);
+    ResponseEntity<String> tcsconnectionGetOriginalUrlGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id, @Parameter(in = ParameterIn.QUERY, description = "useDefaults" ,schema=@Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults, @Parameter(in = ParameterIn.QUERY, description = "params" ,schema=@Schema()) @Valid @RequestParam(value = "params", required = false) String params);
 
 }
 

@@ -1,40 +1,34 @@
-/*******************************************************************************
- * Copyright 2021 EPOS ERIC
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License.  You may obtain a copy
- * of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
- * License for the specific language governing permissions and limitations under
- * the License.
- ******************************************************************************/
-package org.epos.core.beans;
+package org.epos.api.beans;
 
+import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.List;
 
-/**
- * @author epos
- *
- */
-public class ServiceParameter {
+import com.google.gson.annotations.SerializedName;
 
+public class ServiceParameter implements Serializable{
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	
 	private String name;
 	private String label;
 	private String type;
-	private ArrayList<String> enumType;
+	@SerializedName(value = "Enum")
+	private List<String> enumValue;
 	private String minValue;
 	private String maxValue;
 	private String version;
 	private String defaultValue;
 	private String value;
 	private String property;
-	private boolean required;
 	private String valuePattern;
+	private String readOnlyValue;
+	private String multipleValue;
+	private boolean required;
+
 
 	public String getName() {
 		return name;
@@ -45,8 +39,8 @@ public class ServiceParameter {
 	}
 
 	public void setEnumValue(String value) {
-		if(this.enumType==null) this.enumType = new ArrayList<>();
-		this.enumType.add(value);
+		if(this.enumValue==null) this.enumValue = new ArrayList<>();
+		this.enumValue.add(value);
 	}
 
 	public String getType() {
@@ -97,18 +91,19 @@ public class ServiceParameter {
 		this.defaultValue = defaultValue;
 	}
 
+	
 	/**
-	 * @return the enumType
+	 * @return the enum
 	 */
-	public ArrayList<String> getEnumType() {
-		return enumType;
+	public List<String> getEnumValue() {
+		return enumValue;
 	}
 
 	/**
-	 * @param enumType the enumType to set
+	 * @param enum1 the enum to set
 	 */
-	public void setEnumType(ArrayList<String> enumType) {
-		this.enumType = enumType;
+	public void setEnumValue(List<String> enum1) {
+		enumValue = enum1;
 	}
 
 	/**
@@ -140,23 +135,20 @@ public class ServiceParameter {
 	}
 
 
-
-	@Override
-	public String toString() {
-		return "ServiceParameter [name=" + name + ", label=" + label + ", type=" + type + ", enumType=" + enumType
-				+ ", minValue=" + minValue + ", maxValue=" + maxValue + ", version=" + version + ", defaultValue="
-				+ defaultValue + ", value=" + value + ", property=" + property + ", required=" + required
-				+ ", valuePattern=" + valuePattern + "]";
-	}
-
 	public boolean isNull() {
-		return name==null && label==null && type==null && enumType==null && minValue==null && maxValue==null && version==null;
+		return name==null && label==null && type==null && enumValue==null && minValue==null && maxValue==null && version==null;
 	}
 
-	public boolean getRequired() {
+	/**
+	 * @return the required
+	 */
+	public boolean isRequired() {
 		return required;
 	}
 
+	/**
+	 * @param required the required to set
+	 */
 	public void setRequired(boolean required) {
 		this.required = required;
 	}
@@ -168,4 +160,30 @@ public class ServiceParameter {
 	public void setValue(String value) {
 		this.value = value;
 	}
+
+	public String getReadOnlyValue() {
+		return readOnlyValue;
+	}
+
+	public void setReadOnlyValue(String readOnlyValue) {
+		this.readOnlyValue = readOnlyValue;
+	}
+
+	public String getMultipleValue() {
+		return multipleValue;
+	}
+
+	public void setMultipleValue(String multipleValue) {
+		this.multipleValue = multipleValue;
+	}
+
+	@Override
+	public String toString() {
+		return "ServiceParameter [name=" + name + ", label=" + label + ", type=" + type + ", enumValue=" + enumValue
+				+ ", minValue=" + minValue + ", maxValue=" + maxValue + ", version=" + version + ", defaultValue="
+				+ defaultValue + ", value=" + value + ", property=" + property + ", valuePattern=" + valuePattern
+				+ ", readOnlyValue=" + readOnlyValue + ", multipleValue=" + multipleValue + ", required=" + required
+				+ "]";
+	}
+	
 }

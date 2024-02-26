@@ -2,20 +2,18 @@ package org.epos.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
-import kotlin.text.Charsets;
-
-import org.apache.commons.lang3.StringUtils;
+import org.epos.api.beans.Distribution;
+import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
-import org.epos.core.ExternalAccessHandler;
+import org.epos.core.ExecuteItemGenerationJPA;
 import org.epos.core.ExternalServicesRequest;
-import org.epos.core.URLGeneration;
-import org.epos.core.beans.ErrorMessage;
+import org.epos.core.PluginGeneration;
 import org.epos.router_framework.domain.Actor;
 import org.epos.router_framework.domain.BuiltInActorType;
 import org.epos.router_framework.domain.Response;
@@ -28,36 +26,24 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
 import javax.validation.constraints.*;
-import javax.validation.Valid;
 import javax.servlet.http.HttpServletRequest;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
-import java.util.function.BiFunction;
 
 @CrossOrigin(origins = "*", allowedHeaders = "*")
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-10-11T14:51:06.469Z[GMT]")
 @RestController
 public class ExecuteOGCApiController extends ApiController implements ExecuteOGCApi {
 
-	private static final String A_PROBLEM_WAS_ENCOUNTERED_DECODING = "A problem was encountered decoding: ";
-
 	private static final Logger LOGGER = LoggerFactory.getLogger(ExecuteOGCApiController.class);
 
 	private final ObjectMapper objectMapper;
 
 	private final HttpServletRequest request;
-
-	private static Gson gson = new Gson();
 
 	@org.springframework.beans.factory.annotation.Autowired
 	public ExecuteOGCApiController(ObjectMapper objectMapper, HttpServletRequest request) {
@@ -67,54 +53,62 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 	}
 
 	@Override
-	public ResponseEntity<Object> tcsconnectionsOGCExecuteGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("id") String id) {
+	public ResponseEntity<Object> tcsconnectionsOGCExecuteGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id) {
 
 		Map<String, Object> idMap = new HashMap<>();
 		idMap.put("id", id);
-		
+
 		Map<String, Object> parametersMap = new HashMap<>();
 		parametersMap.put("query", request.getQueryString());
-		
+
 		return redirectRequest(ServiceType.EXTERNAL, idMap, parametersMap);
 	}
-	
+
 	private ResponseEntity<Object> redirectRequest(ServiceType service, Map<String, Object> requestParams, Map<String, Object> otherParams) {
 
-		Response response;
-
-		response = doRequest(service, requestParams);
-		
-		System.out.println(response);
-
-		JsonObject payObj = gson.fromJson(response.getPayloadAsPlainText().get(), JsonObject.class);
-		String itemID = payObj.get("id").getAsString();
+		Distribution response = ExecuteItemGenerationJPA.generate(requestParams);
+		Response conversionResponse = null;
 		JsonObject conversion = null;
 
-		if (payObj.has("conversion")) {
-			conversion = payObj.get("conversion").getAsJsonObject();
+		if(response.getOperationid()!=null) {
+			JsonObject conversionParameters = new JsonObject();
+			conversionParameters.addProperty("type", "plugins");
+			conversionParameters.addProperty("operation", response.getOperationid());
+
+			JsonArray softwareConversionList = PluginGeneration.generate(new JsonObject(), conversionParameters, "plugin");
+			if(!softwareConversionList.isJsonNull() && !softwareConversionList.get(0).isJsonNull()) {
+				JsonObject conversionInner = softwareConversionList.get(0).getAsJsonObject();
+				JsonObject singleConversion = new JsonObject();
+				singleConversion.addProperty("operation", response.getOperationid());
+				singleConversion.addProperty("requestContentType", conversionInner
+						.get("action").getAsJsonObject()
+						.get("object").getAsJsonObject()
+						.get("encodingFormat").getAsString());
+				singleConversion.addProperty("responseContentType", conversionInner
+						.get("action").getAsJsonObject()
+						.get("result").getAsJsonObject()
+						.get("encodingFormat").getAsString());
+				conversion = singleConversion;
+			}
 		}
-		
-		System.out.println(payObj.getAsJsonObject().get("serviceEndpoint").getAsString());
-		
-		String compiledUrl = payObj.getAsJsonObject().get("serviceEndpoint").getAsString().split("\\?")[0].replaceAll("\\?", "")+"?"+otherParams.get("query");
-		
-		System.out.println(compiledUrl);
-		
+
+		String compiledUrl = response.getServiceEndpoint().split("\\?")[0].replaceAll("\\?", "")+"?"+otherParams.get("query");
+
 		HttpHeaders httpHeaders = new HttpHeaders();
-		
+
 		Map<String, List<String>> headers = new HashMap<String, List<String>>();
 		try {
 			headers = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
 		} catch (IOException e1) {
 			e1.printStackTrace();
 		}
-		
+
 		for(String key : headers.keySet()) {
 			httpHeaders.put(key,headers.get(key));
 		}
-		
+
 		try {
-			
+
 			if(compiledUrl.contains("GetFeatureInfo") && conversion!=null) {
 				Map<String, Object> responseMap = new HashMap<>();
 				Map<String, String> parametersMap = new HashMap<>();
@@ -124,38 +118,44 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				responseMap.put("parameters", parametersMap);
 				String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
 				responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
-				response = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), responseMap);
-				
-				JsonObject outputResponse = Utils.gson.fromJson(response.getPayloadAsPlainText().get(), JsonObject.class).getAsJsonObject();
-
-				return ResponseEntity.status(HttpStatus.OK)
-						.headers(httpHeaders)
-						.body(outputResponse.get("content").getAsJsonObject().toString());
+				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), responseMap);
+				if(conversionResponse!=null) {
+					JsonObject outputResponse = Utils.gson.fromJson(conversionResponse.getPayloadAsPlainText().get(), JsonObject.class).getAsJsonObject();
+	
+					return ResponseEntity.status(HttpStatus.OK)
+							.headers(httpHeaders)
+							.body(outputResponse.get("content").getAsJsonObject().toString());
+				}else {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error missing conversion from "+response.getDistributionid());
+					return ResponseEntity.status(HttpStatus.NO_CONTENT)
+							.body(Utils.gson.toJsonTree(errorMessage).toString());
+				}
 			}
-				
-			
+
+
 			if(compiledUrl.contains("GetMap")) {
 				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
 				String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
 				httpHeaders.setContentLength(base64image.length());
 				httpHeaders.remove("Transfer-Encoding");
-				
+
 				return ResponseEntity.status(HttpStatus.OK)
 						.headers(httpHeaders)
 						.body(base64image);
 			}
-			
+
 			if(compiledUrl.contains("GetTile")) {
 				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
 				String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
 				httpHeaders.setContentLength(base64image.length());
 				httpHeaders.remove("Transfer-Encoding");
-				
+
 				return ResponseEntity.status(HttpStatus.OK)
 						.headers(httpHeaders)
 						.body(base64image);
 			}
-			
+
 			return ResponseEntity.status(HttpStatus.OK)
 					.headers(httpHeaders)
 					.body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
