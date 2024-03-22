@@ -8,6 +8,8 @@ import com.google.gson.JsonObject;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
+
+import org.apache.commons.lang3.StringUtils;
 import org.epos.api.beans.Distribution;
 import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
@@ -136,24 +138,91 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 
 			if(compiledUrl.contains("GetMap")) {
 				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
-				String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
+				/*String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
 				httpHeaders.setContentLength(base64image.length());
 				httpHeaders.remove("Transfer-Encoding");
 
 				return ResponseEntity.status(HttpStatus.OK)
 						.headers(httpHeaders)
-						.body(base64image);
+						.body(base64image);*/
+				
+				Map<String, Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+
+				if(handlerResponse.containsKey("redirect-url") 
+						&& handlerResponse.containsKey("content-type")
+						&& handlerResponse.containsKey("httpStatusCode")) {
+
+					int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
+					HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
+
+					String redirectUrl = (String) handlerResponse.get("redirect-url");	
+					String contentType = (String) handlerResponse.get("content-type");
+					if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+						ErrorMessage errorMessage = new ErrorMessage();
+						errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
+						errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
+						if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+						if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
+						return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+								.headers(httpHeaders)
+								.body(Utils.gson.toJsonTree(errorMessage).toString());
+					}
+
+					httpHeaders.add("Location", redirectUrl);
+					httpHeaders.add("content-type", contentType);
+					return ResponseEntity.status(HttpStatus.FOUND)
+							.headers(httpHeaders)
+							.body(new JsonObject().toString());
+				}
+				else {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error on external webservice caused by missing information: "+Utils.gson.toJsonTree(handlerResponse));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Utils.gson.toJsonTree(errorMessage).toString());
+				}
 			}
 
 			if(compiledUrl.contains("GetTile")) {
 				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
-				String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
+				/*String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
 				httpHeaders.setContentLength(base64image.length());
 				httpHeaders.remove("Transfer-Encoding");
 
 				return ResponseEntity.status(HttpStatus.OK)
 						.headers(httpHeaders)
-						.body(base64image);
+						.body(base64image);*/
+				Map<String, Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+
+				if(handlerResponse.containsKey("redirect-url") 
+						&& handlerResponse.containsKey("content-type")
+						&& handlerResponse.containsKey("httpStatusCode")) {
+
+					int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
+					HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
+
+					String redirectUrl = (String) handlerResponse.get("redirect-url");	
+					String contentType = (String) handlerResponse.get("content-type");
+					if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+						ErrorMessage errorMessage = new ErrorMessage();
+						errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
+						errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
+						if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+						if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
+						return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+								.headers(httpHeaders)
+								.body(Utils.gson.toJsonTree(errorMessage).toString());
+					}
+
+					httpHeaders.add("Location", redirectUrl);
+					httpHeaders.add("content-type", contentType);
+					return ResponseEntity.status(HttpStatus.FOUND)
+							.headers(httpHeaders)
+							.body(new JsonObject().toString());
+				}
+				else {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error on external webservice caused by missing information: "+Utils.gson.toJsonTree(handlerResponse));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Utils.gson.toJsonTree(errorMessage).toString());
+				}
 			}
 
 			return ResponseEntity.status(HttpStatus.OK)
