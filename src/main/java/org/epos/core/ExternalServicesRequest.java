@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class ExternalServicesRequest {
@@ -135,6 +136,28 @@ public class ExternalServicesRequest {
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
 				return Integer.toString(response.code());
+			} 
+		}
+	}
+	
+	public String getContentType(String url) throws IOException {
+		Request request = new Request.Builder()
+				.url(url)
+                .head()
+				.build();
+
+		try (Response response = builder.build().newCall(request).execute()) {
+			System.out.println(response);
+			return response.body().contentType().toString();
+			
+		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
+			LOGGER.error(e.getMessage());
+			request = new Request.Builder()
+					.url(url.replace("https://", "https://www."))
+					.build();
+			try (Response response = builder.build().newCall(request).execute()) {
+				System.out.println(response);
+				return response.body().contentType().toString();
 			} 
 		}
 	}

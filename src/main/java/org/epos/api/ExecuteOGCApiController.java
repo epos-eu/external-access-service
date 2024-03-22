@@ -135,6 +135,19 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				}
 			}
 
+			if(compiledUrl.contains("GetCapabilities")) {
+				httpHeaders.add("Location", compiledUrl);
+				String contentType = "*/*";
+				try{
+					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
+				}catch(Exception e) {
+					System.err.println(e.getLocalizedMessage());
+				}
+				httpHeaders.add("content-type", contentType);
+				return ResponseEntity.status(HttpStatus.FOUND)
+						.headers(httpHeaders)
+						.body(new JsonObject().toString());
+			}
 
 			if(compiledUrl.contains("GetMap")) {
 				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
@@ -148,7 +161,13 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				
 
 				httpHeaders.add("Location", compiledUrl);
-				httpHeaders.add("content-type", "*/*");
+				String contentType = "*/*";
+				try{
+					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
+				}catch(Exception e) {
+					System.err.println(e.getLocalizedMessage());
+				}
+				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
@@ -164,7 +183,13 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 						.headers(httpHeaders)
 						.body(base64image);*/
 					httpHeaders.add("Location", compiledUrl);
-					httpHeaders.add("content-type", "*/*");
+					String contentType = "*/*";
+					try{
+						contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
+					}catch(Exception e) {
+						System.err.println(e.getLocalizedMessage());
+					}
+					httpHeaders.add("content-type", contentType);
 					return ResponseEntity.status(HttpStatus.FOUND)
 							.headers(httpHeaders)
 							.body(new JsonObject().toString());
