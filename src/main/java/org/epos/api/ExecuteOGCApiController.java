@@ -134,6 +134,20 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
 				}
 			}
+			
+			if(compiledUrl.contains("GetFeatureInfo") && conversion==null){
+				httpHeaders.add("Location", compiledUrl);
+				String contentType = "*/*";
+				try{
+					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
+				}catch(Exception e) {
+					System.err.println(e.getLocalizedMessage());
+				}
+				httpHeaders.add("content-type", contentType);
+				return ResponseEntity.status(HttpStatus.FOUND)
+						.headers(httpHeaders)
+						.body(new JsonObject().toString());
+			}
 
 			if(compiledUrl.contains("GetCapabilities")) {
 				httpHeaders.add("Location", compiledUrl);
