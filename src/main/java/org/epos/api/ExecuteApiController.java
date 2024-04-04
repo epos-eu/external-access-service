@@ -156,7 +156,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 			if(!softwareConversionList.isJsonNull() && !softwareConversionList.get(0).isJsonNull()) {
 				JsonObject conversionInner = softwareConversionList.get(0).getAsJsonObject();
 				JsonObject singleConversion = new JsonObject();
-				singleConversion.addProperty("operation", response.getOperationid());
+				singleConversion.addProperty("operation", response.getOperationinstanceid());
 				singleConversion.addProperty("requestContentType", conversionInner
 						.get("action").getAsJsonObject()
 						.get("object").getAsJsonObject()
@@ -166,6 +166,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 						.get("result").getAsJsonObject()
 						.get("encodingFormat").getAsString());
 				conversion = singleConversion;
+				System.out.println(conversion.toString());
 			}
 		}
 
@@ -184,6 +185,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 				return ResponseEntity.status(HttpStatus.NO_CONTENT)
 						.body(Utils.gson.toJsonTree(errorMessage).toString());
 			}
+			System.out.println("IS IT A CONVERSION? "+conversion!=null);
 			if(conversion!=null)
 				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), handlerResponse);
 			

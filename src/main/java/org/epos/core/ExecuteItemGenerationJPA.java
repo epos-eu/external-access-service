@@ -107,6 +107,8 @@ public class ExecuteItemGenerationJPA {
 			distribution.setEndpoint(op.getTemplate());
 			if(op.getTemplate()!=null) distribution.setServiceEndpoint(op.getTemplate().split("\\{")[0]);
 			distribution.setOperationid(op.getUid());
+			distribution.setOperationinstanceid(op.getInstanceId());
+			System.out.println("OPERATIONID HERE: "+distribution.getOperationid());
 			if (op.getMappingsByInstanceId() != null) {
 				for (EDMMapping mp : op.getMappingsByInstanceId()) {
 					ServiceParameter sp = new ServiceParameter();

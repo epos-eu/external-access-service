@@ -60,6 +60,11 @@ abstract class ApiController {
 				.addHeaders(headers)//
 				.build();
 
+		System.out.println("--------- Request -------");
+		System.out.println(localRequest.getOperationType());
+		System.out.println(localRequest.getRequestType());
+		System.out.println(localRequest.getServiceType());
+		System.out.println("------------------------");
 		Response response;
 		if (nextComponentOverride != null) {
 			response = router.makeRequest(localRequest, nextComponentOverride);

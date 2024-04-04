@@ -12,6 +12,7 @@ public class Distribution implements Serializable {
 	private transient String productid;
 	private transient String distributionid;
 	private String operationid;
+	private String operationinstanceid;
 	
 	private String id;
 	private String type;
@@ -69,6 +70,14 @@ public class Distribution implements Serializable {
 
 	public void setOperationid(String operationid) {
 		this.operationid = operationid;
+	}
+
+	public String getOperationinstanceid() {
+		return operationinstanceid;
+	}
+
+	public void setOperationinstanceid(String operationinstanceid) {
+		this.operationinstanceid = operationinstanceid;
 	}
 
 	public String getId() {
