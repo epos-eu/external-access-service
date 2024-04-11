@@ -1,7 +1,11 @@
 package org.epos.core;
 
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -14,6 +18,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
@@ -83,6 +88,24 @@ public class ExternalServicesRequest {
 		}
 	}
 	
+	public String requestPayloadUsingHttpsURLConnection(String url) throws IOException {
+	    LOGGER.info("Requesting payload for URL -> " + url);
+	    URL requestUrl = new URL(url);
+	    HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
+
+	    connection.setHostnameVerifier((hostname, session) -> true);
+
+	    try (InputStream inputStream = connection.getInputStream();
+	         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+	        StringBuilder response = new StringBuilder();
+	        String line;
+	        while ((line = reader.readLine()) != null) {
+	            response.append(line);
+	        }
+	        return response.toString();
+	    }
+	}
+	
 	public String requestPayloadImage(String url) throws IOException {
 		LOGGER.info("Requesting payload image for URL -> "+url);
 		Request request = new Request.Builder()
@@ -121,6 +144,20 @@ public class ExternalServicesRequest {
 				return response.headers().toMultimap();
 			} 
 		}
+	}
+	
+	public Map<String, List<String>> requestHeadersUsingHttpsURLConnection(String url) throws IOException {
+	    LOGGER.info("Requesting headers for URL -> " + url);
+	    URL requestUrl = new URL(url);
+	    HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
+
+	    try {
+	        Map<String, List<String>> headers = connection.getHeaderFields();
+	        headers.remove(null); // Remove the null key from the map
+	        return headers;
+	    } finally {
+	        connection.disconnect();
+	    }
 	}
 	
 	

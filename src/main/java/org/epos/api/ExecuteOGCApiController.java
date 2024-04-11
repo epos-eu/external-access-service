@@ -103,7 +103,13 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			headers = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
 		} catch (IOException e1) {
 			System.err.println("Error on retrieving headers: "+e1.getLocalizedMessage());
+			try {
+				headers = ExternalServicesRequest.getInstance().requestHeadersUsingHttpsURLConnection(compiledUrl);
+			} catch (IOException e2) {
+				System.err.println("Error on retrieving headers: "+e2.getLocalizedMessage());
+			}
 		}
+		
 
 		for(String key : headers.keySet()) {
 			httpHeaders.put(key,headers.get(key));
@@ -118,7 +124,17 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
 				parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
 				responseMap.put("parameters", parametersMap);
-				String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+				String responsePayload = "{}";
+				try {
+					responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+				}catch(IOException e) {
+					System.err.println("Error on retrieving payload: "+e.getLocalizedMessage());
+					try {
+						responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+					} catch (IOException e1) {
+						System.err.println("Error on retrieving payload: "+e1.getLocalizedMessage());
+					}
+				}
 				responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
 				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), responseMap);
 				if(conversionResponse!=null) {
