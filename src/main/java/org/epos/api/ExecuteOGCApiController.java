@@ -102,7 +102,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 		try {
 			headers = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
 		} catch (IOException e1) {
-			LOGGER.error(e1.getLocalizedMessage());
+			System.err.println("Error on retrieving headers: "+e1.getLocalizedMessage());
 		}
 
 		for(String key : headers.keySet()) {
@@ -141,7 +141,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				try{
 					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 				}catch(Exception e) {
-					System.err.println("Error: "+e.getLocalizedMessage());
+					System.err.println("Error on retrieving content type in OGCExecute for GetFeatureInfo: "+e.getLocalizedMessage());
 				}
 				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
@@ -155,7 +155,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				try{
 					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 				}catch(Exception e) {
-					LOGGER.error(e.getLocalizedMessage());
+					System.err.println("Error on retrieving content type in OGCExecute for GetCapabilities: "+e.getLocalizedMessage());
 				}
 				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
@@ -179,7 +179,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				try{
 					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 				}catch(Exception e) {
-					System.err.println(e.getLocalizedMessage());
+					System.err.println("Error on retrieving content type in OGCExecute for GetMap: "+e.getLocalizedMessage());
 				}
 				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
@@ -201,7 +201,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 					try{
 						contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 					}catch(Exception e) {
-						System.err.println(e.getLocalizedMessage());
+						System.err.println("Error on retrieving content type in OGCExecute for GetTile: "+e.getLocalizedMessage());
 					}
 					httpHeaders.add("content-type", contentType);
 					return ResponseEntity.status(HttpStatus.FOUND)
