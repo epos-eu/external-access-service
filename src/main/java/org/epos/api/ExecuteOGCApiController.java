@@ -141,7 +141,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				try{
 					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 				}catch(Exception e) {
-					LOGGER.error(e.getLocalizedMessage());
+					System.err.println("Error: "+e.getLocalizedMessage());
 				}
 				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
