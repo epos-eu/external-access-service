@@ -6,7 +6,6 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
@@ -15,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
@@ -28,8 +26,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
+
+
 
 public class ExternalServicesRequest {
 
@@ -47,6 +46,7 @@ public class ExternalServicesRequest {
             instance = new ExternalServicesRequest();
             builder = new OkHttpClient.Builder();
             sslContext = getLenientSSLContext();
+
             try {
 				builder.sslSocketFactory(new CustomSSLSocketFactory(), defaultTrustManager());
 			} catch (IOException e) {
@@ -206,8 +206,8 @@ public class ExternalServicesRequest {
 		SSLContext sslContext = null;
 		try {
 			sslContext = SSLContext.getInstance("TLS");
-			sslContext.init(null, trustManagers, null);
-			sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
+			sslContext.init(null, trustManagers, new java.security.SecureRandom());
+			//sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
 			
 		} catch (NoSuchAlgorithmException | KeyManagementException e) {
 			throw new IllegalStateException(String.format(
@@ -242,5 +242,4 @@ public class ExternalServicesRequest {
 	        throw new IllegalStateException("Can't load default trust manager", e);
 	    }
 	}
-
 }
