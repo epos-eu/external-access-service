@@ -153,7 +153,6 @@ public class ExternalServicesRequest {
 
 	    try {
 	        Map<String, List<String>> headers = connection.getHeaderFields();
-	        headers.remove(null); // Remove the null key from the map
 	        return headers;
 	    } finally {
 	        connection.disconnect();
