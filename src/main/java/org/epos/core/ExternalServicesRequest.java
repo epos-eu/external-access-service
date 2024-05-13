@@ -1,12 +1,15 @@
 package org.epos.core;
 
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
@@ -15,7 +18,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SNIServerName;
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
@@ -28,8 +31,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
+
+
 
 public class ExternalServicesRequest {
 
@@ -42,11 +46,12 @@ public class ExternalServicesRequest {
 	static SSLContext sslContext = null;
 	
 	public static ExternalServicesRequest getInstance() {
-		System.setProperty("jsse.enableSNIExtension", "false");
+		//System.setProperty("jsse.enableSNIExtension", "false");
         if (instance == null) {
             instance = new ExternalServicesRequest();
             builder = new OkHttpClient.Builder();
             sslContext = getLenientSSLContext();
+
             try {
 				builder.sslSocketFactory(new CustomSSLSocketFactory(), defaultTrustManager());
 			} catch (IOException e) {
@@ -65,6 +70,7 @@ public class ExternalServicesRequest {
     }
 
 	public String requestPayload(String url) throws IOException {
+		LOGGER.info("Requesting payload for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
 				.build();
@@ -72,7 +78,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.body().string();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error(e.getMessage());
+			System.err.println("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -82,8 +88,26 @@ public class ExternalServicesRequest {
 		}
 	}
 	
+	public String requestPayloadUsingHttpsURLConnection(String url) throws IOException {
+	    LOGGER.info("Requesting payload for URL -> " + url);
+	    URL requestUrl = new URL(url);
+	    HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
+
+	    connection.setHostnameVerifier((hostname, session) -> true);
+
+	    try (InputStream inputStream = connection.getInputStream();
+	         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+	        StringBuilder response = new StringBuilder();
+	        String line;
+	        while ((line = reader.readLine()) != null) {
+	            response.append(line);
+	        }
+	        return response.toString();
+	    }
+	}
+	
 	public String requestPayloadImage(String url) throws IOException {
-		
+		LOGGER.info("Requesting payload image for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
 				.build();
@@ -92,7 +116,7 @@ public class ExternalServicesRequest {
 			//return Base64.encode(response.body().bytes());
 			return Base64.getEncoder().encodeToString(response.body().bytes());
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error(e.getMessage());
+			System.err.println("Error on requesting payload image for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -104,6 +128,7 @@ public class ExternalServicesRequest {
 	}
 	
 	public Map<String, List<String>> requestHeaders(String url) throws IOException {
+		LOGGER.info("Requesting headers for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
 				.build();
@@ -111,7 +136,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.headers().toMultimap();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error(e.getMessage());
+			System.err.println("Error on requesting headers for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -121,8 +146,22 @@ public class ExternalServicesRequest {
 		}
 	}
 	
+	public Map<String, List<String>> requestHeadersUsingHttpsURLConnection(String url) throws IOException {
+	    LOGGER.info("Requesting headers for URL -> " + url);
+	    URL requestUrl = new URL(url);
+	    HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
+
+	    try {
+	        Map<String, List<String>> headers = connection.getHeaderFields();
+	        return headers;
+	    } finally {
+	        connection.disconnect();
+	    }
+	}
+	
 	
 	public String getHttpStatusCode(String url) throws IOException {
+		LOGGER.info("Requesting status code for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
 				.build();
@@ -130,7 +169,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return Integer.toString(response.code());
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error(e.getMessage());
+			System.err.println("Error on requesting status codes for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -141,6 +180,7 @@ public class ExternalServicesRequest {
 	}
 	
 	public String getContentType(String url) throws IOException {
+		LOGGER.info("Requesting content type for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
                 .head()
@@ -151,18 +191,18 @@ public class ExternalServicesRequest {
 			return response.body().contentType().toString();
 			
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error(e.getMessage());
+			System.err.println("Error on requesting content types for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
-				System.out.println(response);
 				return response.body().contentType().toString();
 			} 
 		}
 	}
 	
 	public Map<String, Object> getRedirect(String url) throws IOException {
+		LOGGER.info("Requesting redirect for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
 				.build();
@@ -179,7 +219,7 @@ public class ExternalServicesRequest {
 			responseMap.put("redirect-url", url);
 			return responseMap;
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error(e.getMessage());
+			System.err.println("Error on requesting redirect for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -206,8 +246,8 @@ public class ExternalServicesRequest {
 		SSLContext sslContext = null;
 		try {
 			sslContext = SSLContext.getInstance("TLS");
-			sslContext.init(null, trustManagers, null);
-			sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
+			sslContext.init(null, trustManagers, new java.security.SecureRandom());
+			//sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
 			
 		} catch (NoSuchAlgorithmException | KeyManagementException e) {
 			throw new IllegalStateException(String.format(
@@ -242,5 +282,4 @@ public class ExternalServicesRequest {
 	        throw new IllegalStateException("Can't load default trust manager", e);
 	    }
 	}
-
 }
