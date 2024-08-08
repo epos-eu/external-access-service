@@ -45,11 +45,12 @@ public class ExternalServicesRequest {
 	static OkHttpClient.Builder builder;
 	static SSLContext sslContext = null;
 	
+	
 	public static ExternalServicesRequest getInstance() {
 		//System.setProperty("jsse.enableSNIExtension", "false");
         if (instance == null) {
             instance = new ExternalServicesRequest();
-            builder = new OkHttpClient.Builder();
+            builder = new OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).connectTimeout(10, TimeUnit.SECONDS);
             sslContext = getLenientSSLContext();
 
             try {
