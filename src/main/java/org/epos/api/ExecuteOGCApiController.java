@@ -182,6 +182,8 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			if(compiledUrl.contains("GetCapabilities") ||
 					compiledUrl.contains("GetMap") ||
 					compiledUrl.contains("GetTile")) {
+				httpHeaders = new HttpHeaders();
+				
 				httpHeaders.add("Location", compiledUrl);
 				httpHeaders.add("content-type", ExternalServicesRequest.getInstance().getContentType(compiledUrl));
 				System.out.println(httpHeaders);
