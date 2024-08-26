@@ -44,7 +44,7 @@ public class ExternalServicesRequest {
 	//final OkHttpClient client = new OkHttpClient();
 	static OkHttpClient.Builder builder;
 	static SSLContext sslContext = null;
-	
+
 	
 	public static ExternalServicesRequest getInstance() {
 		//System.setProperty("jsse.enableSNIExtension", "false");

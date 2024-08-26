@@ -109,7 +109,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				System.err.println("Error on retrieving headers: "+e2.getLocalizedMessage());
 			}
 		}
-		
+
 
 		for(String key : headers.keySet()) {
 			httpHeaders.put(key,headers.get(key));
@@ -139,7 +139,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), responseMap);
 				if(conversionResponse!=null) {
 					JsonObject outputResponse = Utils.gson.fromJson(conversionResponse.getPayloadAsPlainText().get(), JsonObject.class).getAsJsonObject();
-	
+
 					return ResponseEntity.status(HttpStatus.OK)
 							.headers(httpHeaders)
 							.body(outputResponse.get("content").getAsJsonObject().toString());
@@ -150,10 +150,34 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
 				}
 			}
-			
+
 			if(compiledUrl.contains("GetFeatureInfo") && conversion==null){
-				httpHeaders.add("Location", compiledUrl);
-				String contentType = "*/*";
+				LOGGER.debug("Redirect GetFeatureInfo");
+
+				Map<String,Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+
+				int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
+				HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
+
+				String redirectUrl = (String) handlerResponse.get("redirect-url");	
+				String contentType = (String) handlerResponse.get("content-type");
+				if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
+					errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
+					if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+					if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.headers(httpHeaders)
+							.body(Utils.gson.toJsonTree(errorMessage).toString());
+				}
+
+				httpHeaders.add("Location", redirectUrl);
+				httpHeaders.add("content-type", contentType);
+				return ResponseEntity.status(HttpStatus.FOUND)
+						.headers(httpHeaders)
+						.body(new JsonObject().toString());
+				/*httpHeaders.add("Location", compiledUrl);
 				try{
 					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 				}catch(Exception e) {
@@ -163,11 +187,36 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
+						*/
 			}
 
 			if(compiledUrl.contains("GetCapabilities")) {
-				httpHeaders.add("Location", compiledUrl);
-				String contentType = "*/*";
+				LOGGER.debug("Redirect GetCapabilities");
+
+				Map<String,Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+
+				int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
+				HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
+
+				String redirectUrl = (String) handlerResponse.get("redirect-url");	
+				String contentType = (String) handlerResponse.get("content-type");
+				if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
+					errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
+					if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+					if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.headers(httpHeaders)
+							.body(Utils.gson.toJsonTree(errorMessage).toString());
+				}
+
+				httpHeaders.add("Location", redirectUrl);
+				httpHeaders.add("content-type", contentType);
+				return ResponseEntity.status(HttpStatus.FOUND)
+						.headers(httpHeaders)
+						.body(new JsonObject().toString());
+				/*httpHeaders.add("Location", compiledUrl);
 				try{
 					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 				}catch(Exception e) {
@@ -176,22 +225,38 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
-						.body(new JsonObject().toString());
+						.body(new JsonObject().toString());*/
 			}
 
 			if(compiledUrl.contains("GetMap")) {
-				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
-				/*String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
-				httpHeaders.setContentLength(base64image.length());
-				httpHeaders.remove("Transfer-Encoding");
+				LOGGER.debug("Redirect GetMap");
+				Map<String,Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
 
-				return ResponseEntity.status(HttpStatus.OK)
+				int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
+				HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
+
+				String redirectUrl = (String) handlerResponse.get("redirect-url");	
+				String contentType = (String) handlerResponse.get("content-type");
+				if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
+					errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
+					if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+					if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+							.headers(httpHeaders)
+							.body(Utils.gson.toJsonTree(errorMessage).toString());
+				}
+
+				httpHeaders.add("Location", redirectUrl);
+				httpHeaders.add("content-type", contentType);
+				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
-						.body(base64image);*/
-				
+						.body(new JsonObject().toString());
 
-				httpHeaders.add("Location", compiledUrl);
-				String contentType = "*/*";
+
+				/*httpHeaders.add("Location", compiledUrl);
+
 				try{
 					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
 				}catch(Exception e) {
@@ -200,30 +265,46 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
-						.body(new JsonObject().toString());
+						.body(new JsonObject().toString());*/
 			}
 
 			if(compiledUrl.contains("GetTile")) {
-				//System.out.println(ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl));
-				/*String base64image = ExternalServicesRequest.getInstance().requestPayloadImage(compiledUrl);
-				httpHeaders.setContentLength(base64image.length());
-				httpHeaders.remove("Transfer-Encoding");
+				LOGGER.debug("Redirect GetTile");
 
-				return ResponseEntity.status(HttpStatus.OK)
-						.headers(httpHeaders)
-						.body(base64image);*/
-					httpHeaders.add("Location", compiledUrl);
-					String contentType = "*/*";
-					try{
-						contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
-					}catch(Exception e) {
-						System.err.println("Error on retrieving content type in OGCExecute for GetTile: "+e.getLocalizedMessage());
-					}
-					httpHeaders.add("content-type", contentType);
-					return ResponseEntity.status(HttpStatus.FOUND)
+				Map<String,Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+
+				int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
+				HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
+
+				String redirectUrl = (String) handlerResponse.get("redirect-url");	
+				String contentType = (String) handlerResponse.get("content-type");
+				if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
+					errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
+					if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+					if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 							.headers(httpHeaders)
-							.body(new JsonObject().toString());
-			
+							.body(Utils.gson.toJsonTree(errorMessage).toString());
+				}
+
+				httpHeaders.add("Location", redirectUrl);
+				httpHeaders.add("content-type", contentType);
+				return ResponseEntity.status(HttpStatus.FOUND)
+						.headers(httpHeaders)
+						.body(new JsonObject().toString());
+				/*httpHeaders.add("Location", compiledUrl);
+				try{
+					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
+				}catch(Exception e) {
+					System.err.println("Error on retrieving content type in OGCExecute for GetTile: "+e.getLocalizedMessage());
+				}
+				httpHeaders.add("content-type", contentType);
+				return ResponseEntity.status(HttpStatus.FOUND)
+						.headers(httpHeaders)
+						.body(new JsonObject().toString());*/
+
 			}
 
 			return ResponseEntity.status(HttpStatus.OK)
