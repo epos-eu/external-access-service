@@ -177,19 +177,19 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
-				/*httpHeaders.add("Location", compiledUrl);
-				try{
-					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
-				}catch(Exception e) {
-					System.err.println("Error on retrieving content type in OGCExecute for GetFeatureInfo: "+e.getLocalizedMessage());
-				}
-				httpHeaders.add("content-type", contentType);
+			}
+			
+			if(compiledUrl.contains("GetCapabilities") &&
+					compiledUrl.contains("GetMap") &&
+					compiledUrl.contains("GetTile") &&
+					compiledUrl.contains("GetTile")) {
+				httpHeaders.add("Location", compiledUrl);
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
-						*/
+				
 			}
-
+/*
 			if(compiledUrl.contains("GetCapabilities")) {
 				LOGGER.debug("Redirect GetCapabilities");
 
@@ -216,16 +216,6 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
-				/*httpHeaders.add("Location", compiledUrl);
-				try{
-					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
-				}catch(Exception e) {
-					System.err.println("Error on retrieving content type in OGCExecute for GetCapabilities: "+e.getLocalizedMessage());
-				}
-				httpHeaders.add("content-type", contentType);
-				return ResponseEntity.status(HttpStatus.FOUND)
-						.headers(httpHeaders)
-						.body(new JsonObject().toString());*/
 			}
 
 			if(compiledUrl.contains("GetMap")) {
@@ -253,19 +243,6 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
-
-
-				/*httpHeaders.add("Location", compiledUrl);
-
-				try{
-					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
-				}catch(Exception e) {
-					System.err.println("Error on retrieving content type in OGCExecute for GetMap: "+e.getLocalizedMessage());
-				}
-				httpHeaders.add("content-type", contentType);
-				return ResponseEntity.status(HttpStatus.FOUND)
-						.headers(httpHeaders)
-						.body(new JsonObject().toString());*/
 			}
 
 			if(compiledUrl.contains("GetTile")) {
@@ -294,19 +271,9 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
-				/*httpHeaders.add("Location", compiledUrl);
-				try{
-					contentType = ExternalServicesRequest.getInstance().getContentType(compiledUrl);
-				}catch(Exception e) {
-					System.err.println("Error on retrieving content type in OGCExecute for GetTile: "+e.getLocalizedMessage());
-				}
-				httpHeaders.add("content-type", contentType);
-				return ResponseEntity.status(HttpStatus.FOUND)
-						.headers(httpHeaders)
-						.body(new JsonObject().toString());*/
 
 			}
-
+*/
 			return ResponseEntity.status(HttpStatus.OK)
 					.headers(httpHeaders)
 					.body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
