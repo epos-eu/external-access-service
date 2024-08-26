@@ -181,7 +181,6 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			
 			if(compiledUrl.contains("GetCapabilities") ||
 					compiledUrl.contains("GetMap") ||
-					compiledUrl.contains("GetTile") ||
 					compiledUrl.contains("GetTile")) {
 				httpHeaders.add("Location", compiledUrl);
 				return ResponseEntity.status(HttpStatus.FOUND)
