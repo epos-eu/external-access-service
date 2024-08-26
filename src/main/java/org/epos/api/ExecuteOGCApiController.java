@@ -183,6 +183,8 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 					compiledUrl.contains("GetMap") ||
 					compiledUrl.contains("GetTile")) {
 				httpHeaders.add("Location", compiledUrl);
+				System.out.println(httpHeaders);
+				System.out.println(compiledUrl);
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
