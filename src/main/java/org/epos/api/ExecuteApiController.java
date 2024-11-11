@@ -1,7 +1,6 @@
 package org.epos.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -32,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import javax.validation.constraints.*;
 import javax.validation.Valid;
 import javax.servlet.http.HttpServletRequest;
+
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
@@ -62,8 +62,9 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 	}
 
 	private void addDecodedParamToMap(final String paramKey, final String paramValue,
-			final Map<String, Object> requestParameters ) {
-		addDecodedParamToMap(paramKey, paramValue, requestParameters, (key,decoded)-> Set.of( Map.entry(key, decoded )));
+			final Map<String, Object> requestParameters) {
+		addDecodedParamToMap(paramKey, paramValue, requestParameters,
+				(key, decoded) -> Set.of(Map.entry(key, decoded)));
 	}
 
 	private void addDecodedParamToMap(final String paramKey, final String paramValue,
@@ -85,57 +86,94 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		}
 	}
 
-	public ResponseEntity<String> tcsconnectionsExecuteGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id, @Parameter(in = ParameterIn.QUERY, description = "useDefaults" ,schema=@Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults,@Parameter(in = ParameterIn.QUERY, description = "output format requested" ,schema=@Schema()) @Valid @RequestParam(value = "format", required = false) String format,@Parameter(in = ParameterIn.QUERY, description = "startDate" ,schema=@Schema()) @Valid @RequestParam(value = "startDate", required = false) String startDate,@Parameter(in = ParameterIn.QUERY, description = "endDate" ,schema=@Schema()) @Valid @RequestParam(value = "endDate", required = false) String endDate,@Parameter(in = ParameterIn.QUERY, description = "bbox" ,schema=@Schema()) @Valid @RequestParam(value = "bbox", required = false) String bbox,@Parameter(in = ParameterIn.QUERY, description = "params" ,schema=@Schema()) @Valid @RequestParam(value = "params", required = false) String params) {
-		
-		final Map<String, Object> requestParameters = decodedRequestParameters(id, useDefaults, format, startDate, endDate, bbox, params);  
+	public ResponseEntity<String> tcsconnectionsExecuteGet(
+			@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed", required = true, schema = @Schema()) @PathVariable("instance_id") String id,
+			@Parameter(in = ParameterIn.QUERY, description = "useDefaults", schema = @Schema()) @Valid @RequestParam(value = "useDefaults", required = true, defaultValue = "false") Boolean useDefaults,
+			@Parameter(in = ParameterIn.QUERY, description = "output format requested", schema = @Schema()) @Valid @RequestParam(value = "format", required = false) String format,
+			@Parameter(in = ParameterIn.QUERY, description = "startDate", schema = @Schema()) @Valid @RequestParam(value = "startDate", required = false) String startDate,
+			@Parameter(in = ParameterIn.QUERY, description = "endDate", schema = @Schema()) @Valid @RequestParam(value = "endDate", required = false) String endDate,
+			@Parameter(in = ParameterIn.QUERY, description = "bbox", schema = @Schema()) @Valid @RequestParam(value = "bbox", required = false) String bbox,
+			@Parameter(in = ParameterIn.QUERY, description = "pluginId", schema = @Schema()) @Valid @RequestParam(value = "pluginId", required = false) String pluginId,
+			@Parameter(in = ParameterIn.QUERY, description = "input format for the plugin execution", schema = @Schema()) @Valid @RequestParam(value = "inputFormat", required = false) String inputFormat,
+			@Parameter(in = ParameterIn.QUERY, description = "params", schema = @Schema()) @Valid @RequestParam(value = "params", required = false) String params) {
+
+		final Map<String, Object> requestParameters = decodedRequestParameters(id, useDefaults, format, startDate,
+				endDate, bbox, pluginId, inputFormat, params);
 
 		try {
-			if(!StringUtils.isBlank(startDate)) Utils.convertDateUsingPattern(startDate, Utils.EPOSINTERNALFORMAT, Utils.EPOSINTERNALFORMAT);
-			if(!StringUtils.isBlank(endDate)) Utils.convertDateUsingPattern(endDate, Utils.EPOSINTERNALFORMAT, Utils.EPOSINTERNALFORMAT);
+			if (!StringUtils.isBlank(startDate))
+				Utils.convertDateUsingPattern(startDate, Utils.EPOSINTERNALFORMAT, Utils.EPOSINTERNALFORMAT);
+			if (!StringUtils.isBlank(endDate))
+				Utils.convertDateUsingPattern(endDate, Utils.EPOSINTERNALFORMAT, Utils.EPOSINTERNALFORMAT);
 		} catch (ParseException e1) {
 			return new ResponseEntity<String>(HttpStatus.BAD_REQUEST);
 		}
 
+		// Validate the parameters
+		if (requestParameters.containsKey("pluginId") &&
+				!requestParameters.containsKey("format") &&
+				!requestParameters.containsKey("inputFormat"))
+			return new ResponseEntity<String>(HttpStatus.BAD_REQUEST);
+
 		return redirectRequest(requestParameters);
 	}
 
-	private Map<String, Object> decodedRequestParameters(//
-			final String id, final Boolean useDefaults, final String format, final String startDate,//
-			final String endDate, final String bbox, final String params) {
-		final Map<String,Object> requestParameters = new HashMap<>();
+	private Map<String, Object> decodedRequestParameters(
+			final String id, final Boolean useDefaults, final String format, final String startDate,
+			final String endDate, final String bbox, final String pluginId, final String inputFormat,
+			final String params) {
+		final Map<String, Object> requestParameters = new HashMap<>();
 
-		addDecodedParamToMap("id", id, requestParameters ); 
-		addDecodedParamToMap("useDefaults", Boolean.toString(useDefaults), requestParameters ); 
-		addDecodedParamToMap("schema:startDate", startDate, requestParameters ); 
-		addDecodedParamToMap("schema:endDate", endDate, requestParameters ) ;
-		addDecodedParamToMap("params", params, requestParameters );
-
-		addDecodedParamToMap("format", format, requestParameters, (key,decoded)-> { 
+		addDecodedParamToMap("id", id, requestParameters);
+		addDecodedParamToMap("useDefaults", Boolean.toString(useDefaults), requestParameters);
+		addDecodedParamToMap("schema:startDate", startDate, requestParameters);
+		addDecodedParamToMap("schema:endDate", endDate, requestParameters);
+		addDecodedParamToMap("pluginId", pluginId, requestParameters);
+		addDecodedParamToMap("inputFormat", inputFormat, requestParameters, (key, decoded) -> {
 			String temp = decoded;
-			if(temp.equals("application/epos.geo json")) {
+			if (temp.equals("application/epos.geo json")) {
 				temp = "application/epos.geo+json";
 			}
-			if(temp.equals("application/epos.table.geo json")) {
+			if (temp.equals("application/epos.table.geo json")) {
 				temp = "application/epos.table.geo+json";
 			}
-			if(temp.equals("application/epos.map.geo json")) {
+			if (temp.equals("application/epos.map.geo json")) {
 				temp = "application/epos.map.geo+json";
 			}
-			if(temp.equals("application/geo json")) {
+			if (temp.equals("application/geo json")) {
 				temp = "application/geo+json";
 			}
 
-			return Set.of( Map.entry(key, temp ));
-		}); 
+			return Set.of(Map.entry(key, temp));
+		});
+		addDecodedParamToMap("params", params, requestParameters);
+
+		addDecodedParamToMap("format", format, requestParameters, (key, decoded) -> {
+			String temp = decoded;
+			if (temp.equals("application/epos.geo json")) {
+				temp = "application/epos.geo+json";
+			}
+			if (temp.equals("application/epos.table.geo json")) {
+				temp = "application/epos.table.geo+json";
+			}
+			if (temp.equals("application/epos.map.geo json")) {
+				temp = "application/epos.map.geo+json";
+			}
+			if (temp.equals("application/geo json")) {
+				temp = "application/geo+json";
+			}
+
+			return Set.of(Map.entry(key, temp));
+		});
 
 		addDecodedParamToMap("bbox", bbox, requestParameters, (key, decoded) -> {
 
 			String[] bboxSplit = decoded.split(",");
-			return Set.of(//
-					Map.entry("epos:northernmostLatitude",bboxSplit[0]), //
-					Map.entry("epos:easternmostLongitude",bboxSplit[1]), //
-					Map.entry("epos:southernmostLatitude",bboxSplit[2]), //
-					Map.entry("epos:westernmostLongitude",bboxSplit[3]));
+			return Set.of(
+					Map.entry("epos:northernmostLatitude", bboxSplit[0]),
+					Map.entry("epos:easternmostLongitude", bboxSplit[1]),
+					Map.entry("epos:southernmostLatitude", bboxSplit[2]),
+					Map.entry("epos:westernmostLongitude", bboxSplit[3]));
 		});
 		return requestParameters;
 	}
@@ -144,87 +182,96 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 
 		Distribution response = ExecuteItemGenerationJPA.generate(requestParams);
 		Response conversionResponse = null;
-		
-		JsonObject conversion = null;
-		
-		if(response.getOperationid()!=null) {
-			JsonObject conversionParameters = new JsonObject();
-			conversionParameters.addProperty("type", "plugins");
-			conversionParameters.addProperty("operation", response.getOperationid());
 
-			JsonArray softwareConversionList = PluginGeneration.generate(new JsonObject(), conversionParameters, "plugin");
-			if(!softwareConversionList.isJsonNull() && !softwareConversionList.get(0).isJsonNull()) {
-				JsonObject conversionInner = softwareConversionList.get(0).getAsJsonObject();
-				JsonObject singleConversion = new JsonObject();
-				singleConversion.addProperty("operation", response.getOperationid());
-				singleConversion.addProperty("requestContentType", conversionInner
-						.get("action").getAsJsonObject()
-						.get("object").getAsJsonObject()
-						.get("encodingFormat").getAsString());
-				singleConversion.addProperty("responseContentType", conversionInner
-						.get("action").getAsJsonObject()
-						.get("result").getAsJsonObject()
-						.get("encodingFormat").getAsString());
-				conversion = singleConversion;
-			}
+		JsonObject conversion = null;
+
+		System.out.println("\n\nREQUEST PARAMS: " + (requestParams) + "\n\n");
+
+		if (response.getOperationid() != null || requestParams.containsKey("pluginId")) {
+			conversion = new JsonObject();
+			// add the operation id so that the converter can guess the plugin id if it was
+			// not specified
+			if (response.getOperationid() != null)
+				conversion.addProperty("operation", response.getOperationid());
+			if (requestParams.containsKey("pluginId"))
+				conversion.addProperty("plugin", requestParams.get("pluginId").toString());
+			if (requestParams.containsKey("format"))
+				conversion.addProperty("responseContentType", requestParams.get("format").toString());
+			if (requestParams.containsKey("inputFormat"))
+				conversion.addProperty("requestContentType", requestParams.get("inputFormat").toString());
 		}
 
-		Map<String,Object> handlerResponse = ExternalAccessHandler.handle(response, "execute", conversion, requestParams);
+		System.out.println("\n\nCONVERSION2: " + (conversion.toString()) + "\n\n");
+		Map<String, Object> handlerResponse = ExternalAccessHandler.handle(response, "execute", conversion,
+				requestParams);
+		System.out.println("\n\nCONVERSION3: " + (conversion.toString()) + "\n\n");
 
-		LOGGER.info(handlerResponse.toString());
+		LOGGER.info("Handler response: " + handlerResponse.toString());
 
 		String responseCode = "OK";
 
 		if (handlerResponse.containsKey("httpStatusCode")) {
 			responseCode = HttpStatus.valueOf(Integer.parseInt((String) handlerResponse.get("httpStatusCode"))).name();
 		} else {
-			if(handlerResponse.get("content")==null) {
+			if (handlerResponse.get("content") == null) {
 				ErrorMessage errorMessage = new ErrorMessage();
-				errorMessage.setMessage("Error missing content from "+response.getDistributionid()+" "+ handlerResponse);
+				errorMessage.setMessage(
+						"Error missing content from " + response.getDistributionid() + " " + handlerResponse);
 				return ResponseEntity.status(HttpStatus.NO_CONTENT)
 						.body(Utils.gson.toJsonTree(errorMessage).toString());
 			}
-			if(conversion!=null)
-				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER), handlerResponse);
-			
-			if(conversion!=null && conversionResponse==null) {
+			System.out.println("\n\nCONVERSION4: " + (conversion.toString()) + "\n\n");
+			if (conversion != null)
+				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER),
+						handlerResponse);
+
+			if (conversion != null && conversionResponse == null) {
 				ErrorMessage errorMessage = new ErrorMessage();
-				errorMessage.setMessage("Error missing conversion from "+response.getDistributionid()+" "+ handlerResponse);
+				errorMessage.setMessage(
+						"Error missing conversion from " + response.getDistributionid() + " " + handlerResponse);
 				return ResponseEntity.status(HttpStatus.NO_CONTENT)
 						.body(Utils.gson.toJsonTree(errorMessage).toString());
 			}
-			
+
 			HttpHeaders httpHeaders = new HttpHeaders();
-			if(conversion!=null)
-				httpHeaders.add("content-type", conversion.get("responseContentType").getAsString().contains("/")? conversion.get("responseContentType").getAsString() : "application/"+conversion.get("responseContentType").getAsString());
+			if (conversion != null)
+				httpHeaders.add("content-type",
+						conversion.get("responseContentType").getAsString().contains("/")
+								? conversion.get("responseContentType").getAsString()
+								: "application/" + conversion.get("responseContentType").getAsString());
 			else
 				httpHeaders.add("content-type", "application/geo+json");
 
 			JsonObject outputResponse = null;
-			if(conversion!=null && conversionResponse!=null) {
+			if (conversion != null && conversionResponse != null) {
 				try {
-					outputResponse = Utils.gson.fromJson(conversionResponse.getPayloadAsPlainText().get(), JsonObject.class).getAsJsonObject();
+					outputResponse = Utils.gson
+							.fromJson(conversionResponse.getPayloadAsPlainText().get(), JsonObject.class)
+							.getAsJsonObject();
 
 					return ResponseEntity.status(HttpStatus.OK)
 							.headers(httpHeaders)
 							.body(outputResponse.get("content").getAsJsonObject().toString());
-				}catch(Exception e) {
+				} catch (Exception e) {
 					ErrorMessage errorMessage = new ErrorMessage();
-					errorMessage.setMessage("Error missing content from "+response.getDistributionid()+" "+ e.getLocalizedMessage());
+					errorMessage.setMessage("Error missing content from " + response.getDistributionid() + " "
+							+ e.getLocalizedMessage());
 					return ResponseEntity.status(HttpStatus.NO_CONTENT)
 							.headers(httpHeaders)
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
 				}
-			}else {
+			} else {
 				try {
-					outputResponse = Utils.gson.fromJson(handlerResponse.toString(), JsonElement.class).getAsJsonObject();
+					outputResponse = Utils.gson.fromJson(handlerResponse.toString(), JsonElement.class)
+							.getAsJsonObject();
 
 					return ResponseEntity.status(HttpStatus.OK)
 							.headers(httpHeaders)
 							.body(outputResponse.get("content").getAsJsonObject().toString());
-				}catch(Exception e) {
+				} catch (Exception e) {
 					ErrorMessage errorMessage = new ErrorMessage();
-					errorMessage.setMessage("Error missing content from "+response.getDistributionid()+" "+ e.getLocalizedMessage());
+					errorMessage.setMessage("Error missing content from " + response.getDistributionid() + " "
+							+ e.getLocalizedMessage());
 					return ResponseEntity.status(HttpStatus.NO_CONTENT)
 							.headers(httpHeaders)
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
@@ -234,60 +281,65 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 
 		switch (responseCode) {
 
-		default : {
-			try {
-			LOGGER.debug("Default case: "+ responseCode);
-			ErrorMessage errorMessage = new ErrorMessage();
-			errorMessage.setMessage("Received response "+responseCode+" from external webservice");
-			errorMessage.setHttpCode(responseCode);
-			if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
-			if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
-			
-			System.out.println(errorMessage.toString());
-
-			return ResponseEntity.status(HttpStatus.valueOf(responseCode))
-					.body(Utils.gson.toJsonTree(errorMessage).toString());
-			}catch(Exception e) {
-				e.printStackTrace();
-			}
-		}
-		case "OK" : {
-			LOGGER.debug("OK case: "+ responseCode);
-			HttpHeaders httpHeaders = new HttpHeaders();
-
-			if(handlerResponse.containsKey("redirect-url") 
-					&& handlerResponse.containsKey("content-type")
-					&& handlerResponse.containsKey("httpStatusCode")) {
-
-				int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
-				HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
-
-				String redirectUrl = (String) handlerResponse.get("redirect-url");	
-				String contentType = (String) handlerResponse.get("content-type");
-				if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+			default: {
+				try {
+					LOGGER.debug("Default case: " + responseCode);
 					ErrorMessage errorMessage = new ErrorMessage();
-					errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
-					errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
-					if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
-					if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
-					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					errorMessage.setMessage("Received response " + responseCode + " from external webservice");
+					errorMessage.setHttpCode(responseCode);
+					if (handlerResponse.containsKey("redirect-url"))
+						errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+					if (handlerResponse.containsKey("content-type"))
+						errorMessage.setContentType(handlerResponse.get("content-type").toString());
+
+					System.out.println(errorMessage.toString());
+
+					return ResponseEntity.status(HttpStatus.valueOf(responseCode))
+							.body(Utils.gson.toJsonTree(errorMessage).toString());
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+			case "OK": {
+				LOGGER.debug("OK case: " + responseCode);
+				HttpHeaders httpHeaders = new HttpHeaders();
+
+				if (handlerResponse.containsKey("redirect-url")
+						&& handlerResponse.containsKey("content-type")
+						&& handlerResponse.containsKey("httpStatusCode")) {
+
+					int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
+					HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
+
+					String redirectUrl = (String) handlerResponse.get("redirect-url");
+					String contentType = (String) handlerResponse.get("content-type");
+					if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
+						ErrorMessage errorMessage = new ErrorMessage();
+						errorMessage.setMessage("Error on get redirect url of an external webservice: "
+								+ response.getDistributionid() + " causing " + httpStatusCode);
+						errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
+						if (handlerResponse.containsKey("redirect-url"))
+							errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
+						if (handlerResponse.containsKey("content-type"))
+							errorMessage.setContentType(handlerResponse.get("content-type").toString());
+						return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+								.headers(httpHeaders)
+								.body(Utils.gson.toJsonTree(errorMessage).toString());
+					}
+
+					httpHeaders.add("Location", redirectUrl);
+					httpHeaders.add("content-type", contentType);
+					return ResponseEntity.status(HttpStatus.FOUND)
 							.headers(httpHeaders)
+							.body(new JsonObject().toString());
+				} else {
+					ErrorMessage errorMessage = new ErrorMessage();
+					errorMessage.setMessage("Error on external webservice caused by missing information: "
+							+ Utils.gson.toJsonTree(handlerResponse));
+					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
 				}
-
-				httpHeaders.add("Location", redirectUrl);
-				httpHeaders.add("content-type", contentType);
-				return ResponseEntity.status(HttpStatus.FOUND)
-						.headers(httpHeaders)
-						.body(new JsonObject().toString());
 			}
-			else {
-				ErrorMessage errorMessage = new ErrorMessage();
-				errorMessage.setMessage("Error on external webservice caused by missing information: "+Utils.gson.toJsonTree(handlerResponse));
-				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Utils.gson.toJsonTree(errorMessage).toString());
-			}
-		}
 		}
 	}
-
 }

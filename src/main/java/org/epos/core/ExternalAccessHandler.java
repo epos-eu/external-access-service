@@ -98,7 +98,7 @@ public class ExternalAccessHandler {
 			}
 
 
-			if (requestParams.containsKey("format") && checkFormat(requestParams.get("format").toString(), compiledUrl.contains("WFS"))) {
+			if ((requestParams.containsKey("format") && checkFormat(requestParams.get("format").toString(), compiledUrl.contains("WFS"))) || requestParams.containsKey("pluginId")) {
 				LOGGER.debug("Direct request");
 				if(conversion==null) {
 					LOGGER.debug("Is native GeoJSON or CovJSON");
@@ -119,12 +119,14 @@ public class ExternalAccessHandler {
 					LOGGER.debug("Is not native GeoJSON or CovJSON");
 					try {
 						Map<String, String> parametersMap = new HashMap<>();
-						parametersMap.put("operation", conversion.get("operation").getAsString());
-						parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
-						parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
+						parametersMap.put("operationId", conversion.get("operation").getAsString());
+						parametersMap.put("pluginId", conversion.has("plugin") ? conversion.get("plugin").getAsString() : null);
+						parametersMap.put("requestContentType", conversion.has("requestContentType") ? conversion.get("requestContentType").getAsString() : null);
+						parametersMap.put("responseContentType", conversion.has("responseContentType") ? conversion.get("responseContentType").getAsString() : null);					//parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
 						responseMap.put("parameters", parametersMap);
 						String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
 						responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
+
 						return responseMap;
 					} catch (Exception ex) {
 						LOGGER.error(ex.getMessage());
