@@ -15,7 +15,6 @@ import com.google.gson.JsonObject;
 
 public class ExternalAccessHandler {
 
-
 	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
 
 	public static Map<String, Object> handle(Distribution distr, String kind, JsonObject conversion, Map<String, Object> requestParams) {
@@ -121,7 +120,20 @@ public class ExternalAccessHandler {
 						Map<String, String> parametersMap = new HashMap<>();
 						parametersMap.put("operationId", conversion.get("operation").getAsString());
 						parametersMap.put("pluginId", conversion.has("plugin") ? conversion.get("plugin").getAsString() : null);
-						parametersMap.put("requestContentType", conversion.has("requestContentType") ? conversion.get("requestContentType").getAsString() : null);
+						// get the content type of the input to the converter from the parameters if
+						// there is, else use the request's body content type
+						if (conversion.has("requestContentType")) {
+							parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
+						} else {
+							ExternalServicesRequest extReq = ExternalServicesRequest.getInstance();
+							try {
+								String contentType = extReq.getContentType(compiledUrl);
+								parametersMap.put("requestContentType", contentType);
+							} catch (IOException e) {
+								LOGGER.debug("Error getting service response's content type");
+								parametersMap.put("requestContentType", null);
+							}
+						}
 						parametersMap.put("responseContentType", conversion.has("responseContentType") ? conversion.get("responseContentType").getAsString() : null);					//parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
 						responseMap.put("parameters", parametersMap);
 						String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
@@ -148,9 +160,9 @@ public class ExternalAccessHandler {
 		}
 	}
 
-	private static boolean checkFormat(String format, boolean isWFS){
+	private static boolean checkFormat(String format, boolean isWFS) {
 		format = format.toLowerCase();
-		return format.equals("application/geo+json") 
+		return format.equals("application/geo+json")
 				|| format.replaceAll("[^a-zA-Z0-9]", "").contains("geojson")
 				|| format.replaceAll("[^a-zA-Z0-9]", "").contains("covjson")
 				|| (format.contains("json") && isWFS)

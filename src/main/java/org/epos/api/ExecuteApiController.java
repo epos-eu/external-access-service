@@ -14,7 +14,6 @@ import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
 import org.epos.core.ExecuteItemGenerationJPA;
 import org.epos.core.ExternalAccessHandler;
-import org.epos.core.PluginGeneration;
 import org.epos.router_framework.domain.Actor;
 import org.epos.router_framework.domain.BuiltInActorType;
 import org.epos.router_framework.types.ServiceType;
@@ -185,8 +184,6 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 
 		JsonObject conversion = null;
 
-		System.out.println("\n\nREQUEST PARAMS: " + (requestParams) + "\n\n");
-
 		if (response.getOperationid() != null || requestParams.containsKey("pluginId")) {
 			conversion = new JsonObject();
 			// add the operation id so that the converter can guess the plugin id if it was
@@ -201,10 +198,8 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 				conversion.addProperty("requestContentType", requestParams.get("inputFormat").toString());
 		}
 
-		System.out.println("\n\nCONVERSION2: " + (conversion.toString()) + "\n\n");
 		Map<String, Object> handlerResponse = ExternalAccessHandler.handle(response, "execute", conversion,
 				requestParams);
-		System.out.println("\n\nCONVERSION3: " + (conversion.toString()) + "\n\n");
 
 		LOGGER.info("Handler response: " + handlerResponse.toString());
 
@@ -220,7 +215,6 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 				return ResponseEntity.status(HttpStatus.NO_CONTENT)
 						.body(Utils.gson.toJsonTree(errorMessage).toString());
 			}
-			System.out.println("\n\nCONVERSION4: " + (conversion.toString()) + "\n\n");
 			if (conversion != null)
 				conversionResponse = doRequest(ServiceType.EXTERNAL, Actor.getInstance(BuiltInActorType.CONVERTER),
 						handlerResponse);
