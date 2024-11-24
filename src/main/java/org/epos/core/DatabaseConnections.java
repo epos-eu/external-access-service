@@ -9,6 +9,7 @@ import metadataapis.*;
 import model.Dataproduct;
 import model.StatusType;
 import org.epos.eposdatamodel.*;
+import org.epos.handler.dbapi.service.EntityManagerService;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -50,11 +51,20 @@ public class DatabaseConnections {
 
 
 
-	private DatabaseConnections() {
+	private DatabaseConnections() {}
+
+	private static DatabaseConnections connections;
+
+	public static DatabaseConnections getInstance() {
+		if(connections==null) connections = new DatabaseConnections();
+		return connections;
+	}
+
+	public void syncDatabaseConnections() {
+		EntityManagerService.getInstance().getCache().evictAll();
 
 		List tempDataproducts  = dataProductAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempSoftwareApplications = softwareApplicationAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
-		List tempSoftwareSourceCode = softwareSourceCodeAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempOrganizationList = organizationAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempCategoryList = categoryAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempDistributionList = distributionAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
@@ -70,7 +80,6 @@ public class DatabaseConnections {
 
 		dataproducts = tempDataproducts;
 		softwareApplications = tempSoftwareApplications;
-		softwareSourceCodes = tempSoftwareSourceCode;
 		organizationList = tempOrganizationList;
 		categoryList = tempCategoryList;
 		distributionList = tempDistributionList;
@@ -85,12 +94,6 @@ public class DatabaseConnections {
 		equipmentList = tempEquipmentList;
 	}
 
-	private static DatabaseConnections connections;
-
-	public static DatabaseConnections getInstance() {
-		if(connections==null) connections = new DatabaseConnections();
-		return connections;
-	}
 
 	public List<DataProduct> getDataproducts() {
 		return dataproducts;
