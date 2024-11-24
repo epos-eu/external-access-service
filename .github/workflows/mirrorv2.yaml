@@ -2,7 +2,7 @@ name: "mirror v2"
 on:
   push:
     branches:
-      - sni
+      - refactoring
 
 jobs:
     mirror:
@@ -12,5 +12,5 @@ jobs:
             - run: |
                   git remote add remote-repo https://github:${{secrets.GITLAB}}@epos-ci.brgm.fr/epos/external-access-service.git
                   git fetch --unshallow
-                  git push remote-repo sni
+                  git push remote-repo refactoring
                   

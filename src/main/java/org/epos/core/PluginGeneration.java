@@ -6,8 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.epos.handler.dbapi.dbapiimplementation.SoftwareApplicationDBAPI;
-import org.epos.handler.dbapi.dbapiimplementation.SoftwareSourceCodeDBAPI;
+import commonapis.LinkedEntityAPI;
 import org.epos.api.beans.Plugin;
 import org.epos.api.utility.Utils;
 import org.epos.eposdatamodel.*;
@@ -23,8 +22,8 @@ public class PluginGeneration {
 	private static final Logger LOGGER = LoggerFactory.getLogger(PluginGeneration.class); 
 	
 	public static JsonArray generate(JsonObject response, JsonObject parameters, String pluginType) {
-		List<SoftwareApplication> softwareApplicationList = new SoftwareApplicationDBAPI().getAllByState(State.PUBLISHED);
-		List<SoftwareSourceCode> softwareSourceCodeList = new SoftwareSourceCodeDBAPI().getAllByState(State.PUBLISHED);
+		List<SoftwareApplication> softwareApplicationList = DatabaseConnections.getInstance().getSoftwareApplications();
+		List<SoftwareSourceCode> softwareSourceCodeList = DatabaseConnections.getInstance().getSoftwareSourceCodes();
 
 		List<SoftwareApplication> softwareToHave = new ArrayList<>();
 		List<SoftwareSourceCode> softwareSCToHave = new ArrayList<>();
@@ -100,10 +99,11 @@ public class PluginGeneration {
 				}
 				// convert list of parameter to a map
 				Map<String, Map<String, String>> action = new HashMap<>();
-				item.getParameter().forEach( parm -> {
-					if(action.containsKey(parm.getAction())){
-						action.get(parm.getAction()).put("encodingFormat", parm.getEncodingFormat());
-						action.get(parm.getAction()).put("conformsTo", parm.getConformsTo());
+				item.getParameter().forEach( parmLe -> {
+					Parameter parm = (Parameter) LinkedEntityAPI.retrieveFromLinkedEntity(parmLe);
+					if(action.containsKey(parm.getAction().name())){
+						action.get(parm.getAction().name()).put("encodingFormat", parm.getEncodingFormat());
+						action.get(parm.getAction().name()).put("conformsTo", parm.getConformsTo());
 					} else {
 						Map<String, String> tmpMap = new HashMap<>();
 						tmpMap.put("encodingFormat", parm.getEncodingFormat());
@@ -113,7 +113,7 @@ public class PluginGeneration {
 				});
 				p.setOperations(item.getRelation().stream().map(LinkedEntity::getUid).collect(Collectors.toList()));
 				p.setAction(action);
-				p.setProxyType(requirements[0]);
+				p.setProxyType(requirements!=null? requirements[0] : null);
 				p.setRequirements(req);
 			}
 		}
