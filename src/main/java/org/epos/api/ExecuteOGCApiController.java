@@ -78,7 +78,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			conversionParameters.addProperty("operation", response.getOperationid());
 
 			JsonArray softwareConversionList = PluginGeneration.generate(new JsonObject(), conversionParameters, "plugin");
-			if(!softwareConversionList.isJsonNull() && !softwareConversionList.get(0).isJsonNull()) {
+			if(!softwareConversionList.isJsonNull() && !softwareConversionList.isEmpty() && !softwareConversionList.get(0).isJsonNull()) {
 				JsonObject conversionInner = softwareConversionList.get(0).getAsJsonObject();
 				JsonObject singleConversion = new JsonObject();
 				singleConversion.addProperty("operation", response.getOperationid());
