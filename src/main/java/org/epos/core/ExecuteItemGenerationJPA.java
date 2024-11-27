@@ -100,7 +100,7 @@ public class ExecuteItemGenerationJPA {
 						sp.setMinValue(mp.getMinValue());
 						sp.setLabel(mp.getLabel() != null ? mp.getLabel().replaceAll("@en", "") : null);
 						sp.setProperty(mp.getProperty());
-						sp.setRequired(Boolean.parseBoolean(mp.getRequired()));
+						sp.setRequired(mp.getRequired()!=null? Boolean.parseBoolean(mp.getRequired()):null);
 						sp.setType(mp.getRange() != null ? mp.getRange().replace("xsd:", "") : null);
 						sp.setValue(null);
 						if (parameters.containsKey("useDefaults") && Boolean.getBoolean(parameters.get("useDefaults").toString())) {

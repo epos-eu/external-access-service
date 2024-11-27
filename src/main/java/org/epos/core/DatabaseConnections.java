@@ -65,6 +65,7 @@ public class DatabaseConnections {
 
 		List tempDataproducts  = dataProductAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempSoftwareApplications = softwareApplicationAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
+		List tempSoftwareSourceCode = softwareSourceCodeAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempOrganizationList = organizationAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempCategoryList = categoryAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
 		List tempDistributionList = distributionAPI.retrieveAll().stream().filter(item -> item.getStatus().equals(StatusType.PUBLISHED)).collect(Collectors.toList());
@@ -80,6 +81,7 @@ public class DatabaseConnections {
 
 		dataproducts = tempDataproducts;
 		softwareApplications = tempSoftwareApplications;
+		softwareSourceCodes = tempSoftwareSourceCode;
 		organizationList = tempOrganizationList;
 		categoryList = tempCategoryList;
 		distributionList = tempDistributionList;

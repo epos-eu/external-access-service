@@ -30,12 +30,12 @@ public class PluginGeneration {
 		
 		for(SoftwareApplication sw : softwareApplicationList) {
 			String identifier = sw.getUid();
-			if(identifier.toLowerCase().contains(pluginType)) softwareToHave.add(sw);
+			if(identifier!=null && identifier.toLowerCase().contains(pluginType)) softwareToHave.add(sw);
 		}
 
 		for(SoftwareSourceCode sw : softwareSourceCodeList) {
 			String identifier = sw.getUid();
-			if(identifier.toLowerCase().contains(pluginType)) softwareSCToHave.add(sw);
+			if(identifier!=null && identifier.toLowerCase().contains(pluginType)) softwareSCToHave.add(sw);
 		}
 		
 
@@ -100,14 +100,14 @@ public class PluginGeneration {
 				// convert list of parameter to a map
 				Map<String, Map<String, String>> action = new HashMap<>();
 				item.getParameter().forEach( parmLe -> {
-					Parameter parm = (Parameter) LinkedEntityAPI.retrieveFromLinkedEntity(parmLe);
-					if(action.containsKey(parm.getAction().name())){
-						action.get(parm.getAction().name()).put("encodingFormat", parm.getEncodingFormat());
-						action.get(parm.getAction().name()).put("conformsTo", parm.getConformsTo());
+					SoftwareApplicationParameter parm = (SoftwareApplicationParameter) LinkedEntityAPI.retrieveFromLinkedEntity(parmLe);
+					if(action.containsKey(parm.getAction())){
+						action.get(parm.getAction()).put("encodingFormat", parm.getEncodingformat());
+						action.get(parm.getAction()).put("conformsTo", parm.getConformsto());
 					} else {
 						Map<String, String> tmpMap = new HashMap<>();
-						tmpMap.put("encodingFormat", parm.getEncodingFormat());
-						tmpMap.put("conformsTo", parm.getConformsTo());
+						tmpMap.put("encodingFormat", parm.getEncodingformat());
+						tmpMap.put("conformsTo", parm.getEncodingformat());
 						action.put(parm.getAction().toString(), tmpMap);
 					}
 				});
