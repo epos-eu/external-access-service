@@ -1,6 +1,7 @@
 package org.epos.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -14,6 +15,7 @@ import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
 import org.epos.core.ExecuteItemGenerationJPA;
 import org.epos.core.ExternalAccessHandler;
+import org.epos.core.PluginGeneration;
 import org.epos.router_framework.domain.Actor;
 import org.epos.router_framework.domain.BuiltInActorType;
 import org.epos.router_framework.types.ServiceType;
@@ -185,17 +187,24 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		JsonObject conversion = null;
 
 		if (response.getOperationid() != null || requestParams.containsKey("pluginId")) {
-			conversion = new JsonObject();
-			// add the operation id so that the converter can guess the plugin id if it was
-			// not specified
-			if (response.getOperationid() != null)
-				conversion.addProperty("operation", response.getOperationid());
-			if (requestParams.containsKey("pluginId"))
-				conversion.addProperty("plugin", requestParams.get("pluginId").toString());
-			if (requestParams.containsKey("format"))
-				conversion.addProperty("responseContentType", requestParams.get("format").toString());
-			if (requestParams.containsKey("inputFormat"))
-				conversion.addProperty("requestContentType", requestParams.get("inputFormat").toString());
+			JsonObject conversionParameters = new JsonObject();
+			conversionParameters.addProperty("type", "plugins");
+			conversionParameters.addProperty("operation", response.getOperationid());
+
+			// TODO: update the converter, resources, external access to handle plugins only using the converter's database
+			JsonArray softwareConversionList = PluginGeneration.generate(new JsonObject(), conversionParameters, "plugin");
+			if (!softwareConversionList.isJsonNull() && softwareConversionList.size() > 0) {
+				conversion = new JsonObject();
+				// add the operation id so that the converter can guess the plugin id if it was not specified
+				if (response.getOperationid() != null)
+					conversion.addProperty("operation", response.getOperationid());
+				if (requestParams.containsKey("pluginId"))
+					conversion.addProperty("plugin", requestParams.get("pluginId").toString());
+				if (requestParams.containsKey("format"))
+					conversion.addProperty("responseContentType", requestParams.get("format").toString());
+				if (requestParams.containsKey("inputFormat"))
+					conversion.addProperty("requestContentType", requestParams.get("inputFormat").toString());
+			}
 		}
 
 		Map<String, Object> handlerResponse = ExternalAccessHandler.handle(response, "execute", conversion,
