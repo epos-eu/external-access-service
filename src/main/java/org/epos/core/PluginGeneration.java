@@ -101,17 +101,19 @@ public class PluginGeneration {
 				Map<String, Map<String, String>> action = new HashMap<>();
 				item.getParameter().forEach( parmLe -> {
 					SoftwareApplicationParameter parm = (SoftwareApplicationParameter) LinkedEntityAPI.retrieveFromLinkedEntity(parmLe);
-					if(action.containsKey(parm.getAction())){
-						action.get(parm.getAction()).put("encodingFormat", parm.getEncodingformat());
-						action.get(parm.getAction()).put("conformsTo", parm.getConformsto());
-					} else {
-						Map<String, String> tmpMap = new HashMap<>();
-						tmpMap.put("encodingFormat", parm.getEncodingformat());
-						tmpMap.put("conformsTo", parm.getEncodingformat());
-						action.put(parm.getAction().toString(), tmpMap);
+					if(parm.getAction()!=null) {
+						if(action.containsKey(parm.getAction())){
+							action.get(parm.getAction()).put("encodingFormat", parm.getEncodingformat());
+							action.get(parm.getAction()).put("conformsTo", parm.getConformsto());
+						} else {
+							Map<String, String> tmpMap = new HashMap<>();
+							tmpMap.put("encodingFormat", parm.getEncodingformat());
+							tmpMap.put("conformsTo", parm.getEncodingformat());
+							action.put(parm.getAction().toString(), tmpMap);
+						}
 					}
 				});
-				p.setOperations(item.getRelation().stream().map(LinkedEntity::getUid).collect(Collectors.toList()));
+				if(item.getRelation()!=null) p.setOperations(item.getRelation().stream().map(LinkedEntity::getUid).collect(Collectors.toList()));
 				p.setAction(action);
 				p.setProxyType(requirements!=null? requirements[0] : null);
 				p.setRequirements(req);
@@ -137,7 +139,7 @@ public class PluginGeneration {
 		}
 		
 		if(parameters.has("operation")) {
-			Plugin singlePlugin = pluginList.stream().filter(e->e.getOperations().contains(parameters.get("operation").getAsString())).findFirst().orElse(null);
+			Plugin singlePlugin = pluginList.stream().filter(e->e.getOperations()!=null).filter(e->e.getOperations().contains(parameters.get("operation").getAsString())).findFirst().orElse(null);
 			pluginList.clear();
 			pluginList.add(singlePlugin);
 		}
