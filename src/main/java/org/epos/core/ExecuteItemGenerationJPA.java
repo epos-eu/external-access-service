@@ -61,7 +61,7 @@ public class ExecuteItemGenerationJPA {
 			distribution.setType(type[type.length - 1]);
 		}
 
-		distribution.setId(distributionSelected.getMetaId());
+		distribution.setId(distributionSelected.getInstanceId());
 
 		if (distributionSelected.getDownloadURL() != null) {
 			distribution.setDownloadURL(
