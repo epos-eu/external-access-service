@@ -113,7 +113,7 @@ public class PluginGeneration {
 						}
 					}
 				});
-				if(item.getRelation()!=null) p.setOperations(item.getRelation().stream().map(LinkedEntity::getUid).collect(Collectors.toList()));
+				if(item.getRelatedOperation()!=null) p.setOperations(item.getRelatedOperation().stream().map(LinkedEntity::getUid).collect(Collectors.toList()));
 				p.setAction(action);
 				p.setProxyType(requirements!=null? requirements[0] : null);
 				p.setRequirements(req);
