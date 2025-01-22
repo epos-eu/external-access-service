@@ -32,119 +32,115 @@ public class ExternalAccessHandler {
 			return responseMap;
 		}
 
-		switch(distr.getType()) {
-		case "DOWNLOADABLE_FILE" :
-			try {
-				String compiledUrl = URLGeneration.ogcWFSChecker(distr.getServiceEndpoint());
-				return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
-			} catch (Exception ex) {
-				LOGGER.error(ex.getMessage());
-				return null;
-			}
-		default:
-			HashMap<String, Object> parameters = new HashMap<>();
-			Map<String, Object> responseMap = new HashMap<>();
+        if (distr.getType().equals("DOWNLOADABLE_FILE")) {
+            try {
+                String compiledUrl = URLGeneration.ogcWFSChecker(distr.getServiceEndpoint());
+                return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+            } catch (Exception ex) {
+                LOGGER.error(ex.getMessage());
+                return null;
+            }
+        }
+        HashMap<String, Object> parameters = new HashMap<>();
+        Map<String, Object> responseMap = new HashMap<>();
 
-			if(distr.getParameters()!=null) {
-				distr.getParameters().forEach(p -> {
-					if (p.getValue() != null && !p.getValue().equals(""))
-						parameters.put(p.getName(), p.getValue());
-					if (p.getDefaultValue() != null && p.getValue() == null && p.isRequired())
-						parameters.put(p.getName(), p.getDefaultValue());
-				});
-			}
-			if(requestParams.containsKey("format")) {
-				if(ContentType.fromValue(requestParams.get("format").toString()).isPresent() && conversion==null) {
-					if(distr.getParameters()!=null) {
-						for(ServiceParameter p : distr.getParameters()) {
-							if(p.getProperty()!=null && p.getProperty().equals("schema:encodingFormat")) {
-								parameters.remove(p.getName());
-								parameters.put(p.getName(),requestParams.get("format").toString());
-							}
-						}
-					}
-				}
-				if(ContentType.fromValue(requestParams.get("format").toString()).isEmpty()) {
-					if(distr.getParameters()!=null) {
-						for(ServiceParameter p : distr.getParameters()) {
-							if(p.getProperty()!=null && p.getProperty().equals("schema:encodingFormat")) {
-								parameters.remove(p.getName());
-								parameters.put(p.getName(),requestParams.get("format").toString());
-							}
-						}
-					}
-				}
-			}
+        if (distr.getParameters() != null) {
+            distr.getParameters().forEach(p -> {
+                if (p.getValue() != null && !p.getValue().isEmpty())
+                    parameters.put(p.getName(), p.getValue());
+                if (p.getDefaultValue() != null && p.getValue() == null && p.isRequired())
+                    parameters.put(p.getName(), p.getDefaultValue());
+            });
+        }
+        if (requestParams.containsKey("format")) {
+            if (ContentType.fromValue(requestParams.get("format").toString()).isPresent() && conversion == null) {
+                if (distr.getParameters() != null) {
+                    for (ServiceParameter p : distr.getParameters()) {
+                        if (p.getProperty() != null && p.getProperty().equals("schema:encodingFormat")) {
+                            parameters.remove(p.getName());
+                            parameters.put(p.getName(), requestParams.get("format").toString());
+                        }
+                    }
+                }
+            }
+            if (ContentType.fromValue(requestParams.get("format").toString()).isEmpty()) {
+                if (distr.getParameters() != null) {
+                    for (ServiceParameter p : distr.getParameters()) {
+                        if (p.getProperty() != null && p.getProperty().equals("schema:encodingFormat")) {
+                            parameters.remove(p.getName());
+                            parameters.put(p.getName(), requestParams.get("format").toString());
+                        }
+                    }
+                }
+            }
+        }
 
-			String compiledUrl = URLGeneration.generateURLFromTemplateAndMap(distr.getEndpoint(), parameters);
-			try {
-				compiledUrl = URLGeneration.ogcWFSChecker(compiledUrl);
-			}catch(Exception e) {
-				LOGGER.error("Found the following issue whilst executing the WFS Checker, issue raised "+ e.getMessage() + " - Continuing execution");
-			}
-			LOGGER.debug("URL to be executed: "+compiledUrl);
+        String compiledUrl = URLGeneration.generateURLFromTemplateAndMap(distr.getEndpoint(), parameters);
+        try {
+            compiledUrl = URLGeneration.ogcWFSChecker(compiledUrl);
+        } catch (Exception e) {
+            LOGGER.error("Found the following issue whilst executing the WFS Checker, issue raised " + e.getMessage() + " - Continuing execution");
+        }
+        LOGGER.debug("URL to be executed: " + compiledUrl);
 
-			System.out.println("URL to be executed: "+compiledUrl);
+        System.out.println("URL to be executed: " + compiledUrl);
 
-			if (kind.contains("getoriginalurl")) {
-				try {
-					responseMap.put("url", compiledUrl);
-					return responseMap;
-				} catch (Exception ex) {
-					LOGGER.error("Issue raised "+ex.getMessage()+" sending back a 503 message");
-					responseMap.put("httpStatusCode", "503");
-					return responseMap;
-				}
-			}
+        if (kind.contains("getoriginalurl")) {
+            try {
+                responseMap.put("url", compiledUrl);
+                return responseMap;
+            } catch (Exception ex) {
+                LOGGER.error("Issue raised " + ex.getMessage() + " sending back a 503 message");
+                responseMap.put("httpStatusCode", "503");
+                return responseMap;
+            }
+        }
 
 
-			if (requestParams.containsKey("format") && checkFormat(requestParams.get("format").toString(), compiledUrl.contains("WFS"))) {
-				LOGGER.debug("Direct request");
-				if(conversion==null) {
-					LOGGER.debug("Is native GeoJSON or CovJSON");
-					try {
-						String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
-						responseMap.remove("content");
-						responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
-					} catch (IOException e) {
-						LOGGER.error(e.getMessage());
-						LOGGER.error("Impossible to get any response from "+compiledUrl);
-						responseMap = new HashMap<>();
-						responseMap.put("httpStatusCode", "503");
-						return responseMap;
-					}
-					return responseMap;
-				}
-				else {
-					LOGGER.debug("Is not native GeoJSON or CovJSON");
-					try {
-						Map<String, String> parametersMap = new HashMap<>();
-						parametersMap.put("operation", conversion.get("operation").getAsString());
-						parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
-						parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
-						responseMap.put("parameters", parametersMap);
-						String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
-						responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
-						return responseMap;
-					} catch (Exception ex) {
-						LOGGER.error(ex.getMessage());
-						LOGGER.error("No Conversion parameter provided, sending back a 503 message");
-						responseMap.put("httpStatusCode", "503");
-						return responseMap;
-					}
-				}
-			} else  {
-				LOGGER.debug("Redirect");
-				try {
-					return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
-				} catch (Exception ex) {
-					LOGGER.error("Issue raised "+ex.getMessage()+" sending back a 503 message");
-					responseMap.put("httpStatusCode", "503");
-					return responseMap;
-				}
-			}
-		}
-	}
+        if (requestParams.containsKey("format") && checkFormat(requestParams.get("format").toString(), compiledUrl.contains("WFS"))) {
+            LOGGER.debug("Direct request");
+            if (conversion == null) {
+                LOGGER.debug("Is native GeoJSON or CovJSON");
+                try {
+                    String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+                    responseMap.put("content", responsePayload.isEmpty() ? "{}" : responsePayload);
+                } catch (IOException e) {
+                    LOGGER.error(e.getMessage());
+                    LOGGER.error("Impossible to get any response from {}", compiledUrl);
+                    responseMap = new HashMap<>();
+                    responseMap.put("httpStatusCode", "503");
+                    return responseMap;
+                }
+                return responseMap;
+            } else {
+                LOGGER.debug("Is not native GeoJSON or CovJSON");
+                try {
+                    Map<String, String> parametersMap = new HashMap<>();
+                    parametersMap.put("operation", conversion.get("operation").getAsString());
+                    parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
+                    parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
+                    responseMap.put("parameters", parametersMap);
+                    String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+                    responseMap.put("content", responsePayload.isEmpty() ? "{}" : responsePayload);
+                    return responseMap;
+                } catch (Exception ex) {
+                    LOGGER.error(ex.getMessage());
+                    LOGGER.error("No Conversion parameter provided, sending back a 503 message");
+                    responseMap.put("httpStatusCode", "503");
+                    return responseMap;
+                }
+            }
+        } else {
+            LOGGER.debug("Redirect");
+            try {
+                return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+            } catch (Exception ex) {
+                LOGGER.error("Issue raised " + ex.getMessage() + " sending back a 503 message");
+                responseMap.put("httpStatusCode", "503");
+                return responseMap;
+            }
+        }
+    }
 
 	private static boolean checkFormat(String format, boolean isWFS){
 		format = format.toLowerCase();

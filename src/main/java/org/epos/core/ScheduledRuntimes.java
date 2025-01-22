@@ -30,25 +30,4 @@ public class ScheduledRuntimes {
         LOGGER.info("[Scheduled Task - Resources] Resources successfully updated");
 	}
 
-	private String getSubString(final String input, char characterStart, char characterEnd) {
-		if(input == null) {
-			return null;
-		}
-
-		final int indexOfAt = input.indexOf(characterStart);
-		if(input.isEmpty() || indexOfAt < 0 || indexOfAt > input.length()-1) {
-			return null;
-		}
-
-		String suffix = input.substring(indexOfAt + 1);
-
-		final int indexOfDot = suffix.indexOf(characterEnd);
-
-		if(indexOfDot < 1) {
-			return null;
-		}
-
-		return suffix.substring(0, indexOfDot);
-	}
-
 }

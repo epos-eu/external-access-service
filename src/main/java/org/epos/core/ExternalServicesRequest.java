@@ -10,11 +10,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
@@ -37,7 +33,7 @@ import okhttp3.Response;
 
 public class ExternalServicesRequest {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalServicesRequest.class);
 	
 	private static ExternalServicesRequest instance = null;
 	
@@ -77,14 +73,16 @@ public class ExternalServicesRequest {
 				.build();
 
 		try (Response response = builder.build().newCall(request).execute()) {
-			return response.body().string();
+            assert response.body() != null;
+            return response.body().string();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			System.err.println("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
-				return response.body().string();
+                assert response.body() != null;
+                return response.body().string();
 			} 
 		}
 	}
@@ -115,7 +113,8 @@ public class ExternalServicesRequest {
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			//return Base64.encode(response.body().bytes());
-			return Base64.getEncoder().encodeToString(response.body().bytes());
+            assert response.body() != null;
+            return Base64.getEncoder().encodeToString(response.body().bytes());
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			System.err.println("Error on requesting payload image for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
@@ -123,7 +122,8 @@ public class ExternalServicesRequest {
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
 				//return Base64.encode(response.body().bytes());
-				return Base64.getEncoder().encodeToString(response.body().bytes());
+                assert response.body() != null;
+                return Base64.getEncoder().encodeToString(response.body().bytes());
 			} 
 		}
 	}
@@ -153,8 +153,7 @@ public class ExternalServicesRequest {
 	    HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
 
 	    try {
-	        Map<String, List<String>> headers = connection.getHeaderFields();
-	        return headers;
+            return connection.getHeaderFields();
 	    } finally {
 	        connection.disconnect();
 	    }
@@ -189,7 +188,8 @@ public class ExternalServicesRequest {
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			System.out.println(response);
-			return response.body().contentType().toString();
+            assert response.body() != null;
+            return Objects.requireNonNull(response.body().contentType()).toString();
 			
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			System.err.println("Error on requesting content types for URL: "+url+" cause: "+e.getLocalizedMessage());
@@ -197,7 +197,8 @@ public class ExternalServicesRequest {
 					.url(url.replace("https://", "https://www."))
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
-				return response.body().contentType().toString();
+                assert response.body() != null;
+                return Objects.requireNonNull(response.body().contentType()).toString();
 			} 
 		}
 	}
@@ -212,7 +213,8 @@ public class ExternalServicesRequest {
 			System.out.println(response);
 
 			Map<String, Object> responseMap = new HashMap<>();
-			String contentType = response.body().contentType().toString();	
+            assert response.body() != null;
+            String contentType = Objects.requireNonNull(response.body().contentType()).toString();
 			String httpStatusCode = Integer.toString(response.code());
 			
 			responseMap.put("content-type", contentType);
@@ -226,7 +228,8 @@ public class ExternalServicesRequest {
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
 				Map<String, Object> responseMap = new HashMap<>();
-				String contentType = response.body().contentType().toString();	
+                assert response.body() != null;
+                String contentType = Objects.requireNonNull(response.body().contentType()).toString();
 				String httpStatusCode = Integer.toString(response.code());
 				
 				responseMap.put("content-type", contentType);

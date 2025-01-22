@@ -62,24 +62,22 @@ public class PluginGeneration {
 
 		softwareToHave.clear();
 		softwareSCToHave.clear();
-		tempSoftwares.entrySet().stream().forEach(e->{
-			if(e.getValue().size()>1) {
-				SoftwareApplication sw = new SoftwareApplication();
-				for(int i = 0; i<e.getValue().size();i++)
-					sw =Utils.mergeObjects(sw, e.getValue().get(i));
-				e.getValue().clear();
-				e.getValue().add(sw);
-			}
-		});
-		tempSoftwaresSC.entrySet().stream().forEach(e->{
-			if(e.getValue().size()>1) {
-				SoftwareSourceCode sw = new SoftwareSourceCode();
-				for(int i = 0; i<e.getValue().size();i++)
-					sw =Utils.mergeObjects(sw, e.getValue().get(i));
-				e.getValue().clear();
-				e.getValue().add(sw);
-			}
-		});
+		tempSoftwares.forEach((key, value) -> {
+            if (value.size() > 1) {
+                SoftwareApplication sw = new SoftwareApplication();
+                for (SoftwareApplication softwareApplication : value) sw = Utils.mergeObjects(sw, softwareApplication);
+                value.clear();
+                value.add(sw);
+            }
+        });
+		tempSoftwaresSC.forEach((key, value) -> {
+            if (value.size() > 1) {
+                SoftwareSourceCode sw = new SoftwareSourceCode();
+                for (SoftwareSourceCode softwareSourceCode : value) sw = Utils.mergeObjects(sw, softwareSourceCode);
+                value.clear();
+                value.add(sw);
+            }
+        });
 		
 		ArrayList<Plugin> pluginList = new ArrayList<>();
 		for(ArrayList<SoftwareApplication> items : tempSoftwares.values()) {
@@ -94,7 +92,7 @@ public class PluginGeneration {
 				String[] requirements = null;
 				String req =null;
 				if(item.getRequirements()!=null) {
-					requirements = item.getRequirements().split("\\;");
+					requirements = item.getRequirements().split(";");
 					req = item.getRequirements().replace(requirements[0]+";", "");
 				}
 				// convert list of parameter to a map
@@ -109,7 +107,7 @@ public class PluginGeneration {
 							Map<String, String> tmpMap = new HashMap<>();
 							tmpMap.put("encodingFormat", parm.getEncodingformat());
 							tmpMap.put("conformsTo", parm.getEncodingformat());
-							action.put(parm.getAction().toString(), tmpMap);
+							action.put(parm.getAction(), tmpMap);
 						}
 					}
 				});

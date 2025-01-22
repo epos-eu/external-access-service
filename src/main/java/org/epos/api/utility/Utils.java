@@ -89,7 +89,7 @@ public class Utils {
 				field.set(result, value);
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			LOGGER.error(e.getMessage());
 		}
 		return (T) result;
 	}
@@ -145,8 +145,7 @@ public class Utils {
 	public static String convertDateUsingPattern(String dateString, String inputFormat, String outputFormat) throws ParseException {
 		if(isValidFormat(convertISOPatternToJavaFormatPattern(outputFormat), dateString)) return dateString;
 		if(inputFormat==null) inputFormat=EPOSINTERNALFORMAT;
-		if(outputFormat==null) outputFormat=EPOSINTERNALFORMAT;
-		if(dateString==null || inputFormat==null || outputFormat==null) throw new NullPointerException();
+        if(dateString == null) throw new NullPointerException();
 
 		String dateConverted = null;
 
@@ -221,7 +220,7 @@ public class Utils {
 				date = null;
 			}
 		} catch (ParseException ex) {
-			LOGGER.warn("Error parsing date", ex.getLocalizedMessage());
+			LOGGER.warn("Error parsing date {}", ex.getLocalizedMessage());
 		}
 		return date != null;
 	}
