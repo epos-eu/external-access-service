@@ -50,8 +50,6 @@ public class ExecuteItemGenerationJPA {
 					.map(linkedEntity -> (Operation) LinkedEntityAPI.retrieveFromLinkedEntity(linkedEntity))
 					.filter(Objects::nonNull).collect(Collectors.toList());
 			op = !opList.isEmpty() ? opList.get(0) : null;
-		} else {
-			return null;
 		}
 
 		Distribution distribution = new Distribution();
