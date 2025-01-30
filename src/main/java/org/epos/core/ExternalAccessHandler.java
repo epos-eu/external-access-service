@@ -15,7 +15,6 @@ import com.google.gson.JsonObject;
 
 public class ExternalAccessHandler {
 
-
 	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
 
 	public static Map<String, Object> handle(Distribution distr, String kind, JsonObject conversion, Map<String, Object> requestParams) {
@@ -32,14 +31,15 @@ public class ExternalAccessHandler {
 			return responseMap;
 		}
 
-        if (distr.getType().equals("DOWNLOADABLE_FILE")) {
-            try {
-                String compiledUrl = URLGeneration.ogcWFSChecker(distr.getServiceEndpoint());
-                return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
-            } catch (Exception ex) {
-                LOGGER.error(ex.getMessage());
-                return null;
-            }
+
+		if (distr.getType().equals("DOWNLOADABLE_FILE")) {
+			try {
+				String compiledUrl = URLGeneration.ogcWFSChecker(distr.getServiceEndpoint());
+				return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+			} catch (Exception ex) {
+				LOGGER.error(ex.getMessage());
+				return null;
+			}
         }
         HashMap<String, Object> parameters = new HashMap<>();
         Map<String, Object> responseMap = new HashMap<>();
@@ -97,8 +97,8 @@ public class ExternalAccessHandler {
         }
 
 
-        if (requestParams.containsKey("format") && checkFormat(requestParams.get("format").toString(), compiledUrl.contains("WFS"))) {
-            LOGGER.debug("Direct request");
+		 if ((requestParams.containsKey("format") && checkFormat(requestParams.get("format").toString(), compiledUrl.contains("WFS"))) || requestParams.containsKey("pluginId")) {
+			LOGGER.debug("Direct request");
             if (conversion == null) {
                 LOGGER.debug("Is native GeoJSON or CovJSON");
                 try {
@@ -115,14 +115,29 @@ public class ExternalAccessHandler {
             } else {
                 LOGGER.debug("Is not native GeoJSON or CovJSON");
                 try {
-                    Map<String, String> parametersMap = new HashMap<>();
-                    parametersMap.put("operation", conversion.get("operation").getAsString());
-                    parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
-                    parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
-                    responseMap.put("parameters", parametersMap);
-                    String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
-                    responseMap.put("content", responsePayload.isEmpty() ? "{}" : responsePayload);
-                    return responseMap;
+					Map<String, String> parametersMap = new HashMap<>();
+					parametersMap.put("operationId", conversion.get("operation").getAsString());
+					parametersMap.put("pluginId", conversion.has("plugin") ? conversion.get("plugin").getAsString() : null);
+					// get the content type of the input to the converter from the parameters if
+					// there is, else use the request's body content type
+					if (conversion.has("requestContentType")) {
+						parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
+					} else {
+						ExternalServicesRequest extReq = ExternalServicesRequest.getInstance();
+						try {
+							String contentType = extReq.getContentType(compiledUrl);
+							parametersMap.put("requestContentType", contentType);
+						} catch (IOException e) {
+							LOGGER.debug("Error getting service response's content type");
+							parametersMap.put("requestContentType", null);
+						}
+					}
+					parametersMap.put("responseContentType", conversion.has("responseContentType") ? conversion.get("responseContentType").getAsString() : null);					//parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
+					responseMap.put("parameters", parametersMap);
+					String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+					responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
+
+					return responseMap; 
                 } catch (Exception ex) {
                     LOGGER.error(ex.getMessage());
                     LOGGER.error("No Conversion parameter provided, sending back a 503 message");
@@ -140,11 +155,11 @@ public class ExternalAccessHandler {
                 return responseMap;
             }
         }
-    }
+	}
 
-	private static boolean checkFormat(String format, boolean isWFS){
+	private static boolean checkFormat(String format, boolean isWFS) {
 		format = format.toLowerCase();
-		return format.equals("application/geo+json") 
+		return format.equals("application/geo+json")
 				|| format.replaceAll("[^a-zA-Z0-9]", "").contains("geojson")
 				|| format.replaceAll("[^a-zA-Z0-9]", "").contains("covjson")
 				|| (format.contains("json") && isWFS)
