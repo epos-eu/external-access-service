@@ -112,7 +112,7 @@ public class PluginGeneration {
 						}
 					}
 				});
-				if(item.getRelatedOperation()!=null) p.setOperations(item.getRelatedOperation().stream().map(LinkedEntity::getUid).collect(Collectors.toList()));
+				if(item.getRelatedOperation()!=null) p.setOperations(item.getRelatedOperation().stream().map(LinkedEntity::getInstanceId).collect(Collectors.toList()));
 				p.setAction(action);
 				p.setProxyType(requirements!=null? requirements[0] : null);
 				p.setRequirements(req);
@@ -138,14 +138,15 @@ public class PluginGeneration {
 			}
 		}
 		
-		if(parameters.has("operation")) {
-			Plugin singlePlugin = pluginList.stream().filter(e->e.getOperations()!=null).filter(e->e.getOperations().contains(parameters.get("operation").getAsString())).findFirst().orElse(null);
-			pluginList.clear();
-			pluginList.add(singlePlugin);
+		if (parameters.has("operation")) {
+			String operation = parameters.get("operation").getAsString();
+			pluginList.removeIf(e -> {
+				List<String> ops = e.getOperations();
+				return ops == null || !ops.contains(operation);
+			});
 		}
 
 		return pluginList.isEmpty() ? new JsonArray() : Utils.gson.toJsonTree(pluginList).getAsJsonArray();
-
 	}
 
 }
