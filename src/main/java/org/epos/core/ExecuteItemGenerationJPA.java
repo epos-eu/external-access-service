@@ -82,7 +82,7 @@ public class ExecuteItemGenerationJPA {
 		if (Objects.nonNull(op)) {
 			distribution.setEndpoint(op.getTemplate());
 			if (op.getTemplate() != null) distribution.setServiceEndpoint(op.getTemplate().split("\\{")[0]);
-			distribution.setOperationid(op.getUid());
+			distribution.setOperationid(op.getInstanceId());
 			if (op.getMapping() != null && !op.getMapping().isEmpty()) {
 				for (LinkedEntity mpLe : op.getMapping()) {
 						Mapping mp = (Mapping) LinkedEntityAPI.retrieveFromLinkedEntity(mpLe);

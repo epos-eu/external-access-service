@@ -16,45 +16,45 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-
 public class PluginGeneration {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(PluginGeneration.class); 
-	
+	private static final Logger LOGGER = LoggerFactory.getLogger(PluginGeneration.class);
+
 	public static JsonArray generate(JsonObject response, JsonObject parameters, String pluginType) {
 		List<SoftwareApplication> softwareApplicationList = DatabaseConnections.getInstance().getSoftwareApplications();
 		List<SoftwareSourceCode> softwareSourceCodeList = DatabaseConnections.getInstance().getSoftwareSourceCodes();
 
 		List<SoftwareApplication> softwareToHave = new ArrayList<>();
 		List<SoftwareSourceCode> softwareSCToHave = new ArrayList<>();
-		
-		for(SoftwareApplication sw : softwareApplicationList) {
+
+		for (SoftwareApplication sw : softwareApplicationList) {
 			String identifier = sw.getUid();
 			if(identifier!=null && identifier.toLowerCase().contains(pluginType)) softwareToHave.add(sw);
 		}
 
-		for(SoftwareSourceCode sw : softwareSourceCodeList) {
+		for (SoftwareSourceCode sw : softwareSourceCodeList) {
 			String identifier = sw.getUid();
 			if(identifier!=null && identifier.toLowerCase().contains(pluginType)) softwareSCToHave.add(sw);
 		}
-		
 
-		HashMap<String,ArrayList<SoftwareApplication>> tempSoftwares = new HashMap<>();
-		HashMap<String,ArrayList<SoftwareSourceCode>> tempSoftwaresSC = new HashMap<>();
-		for(SoftwareApplication softwareResults : softwareToHave) {
-			String identifier = softwareResults.getUid().replace("SoftwareSourceCode/", "").replace("SoftwareApplication/", "");
-			if(tempSoftwares.containsKey(identifier)) {
+		HashMap<String, ArrayList<SoftwareApplication>> tempSoftwares = new HashMap<>();
+		HashMap<String, ArrayList<SoftwareSourceCode>> tempSoftwaresSC = new HashMap<>();
+		for (SoftwareApplication softwareResults : softwareToHave) {
+			String identifier = softwareResults.getUid().replace("SoftwareSourceCode/", "")
+					.replace("SoftwareApplication/", "");
+			if (tempSoftwares.containsKey(identifier)) {
 				tempSoftwares.get(identifier).add(softwareResults);
-			}else {
+			} else {
 				tempSoftwares.put(identifier, new ArrayList<>());
 				tempSoftwares.get(identifier).add(softwareResults);
 			}
 		}
-		for(SoftwareSourceCode softwareResults : softwareSCToHave) {
-			String identifier = softwareResults.getUid().replace("SoftwareSourceCode/", "").replace("SoftwareApplication/", "");
-			if(tempSoftwaresSC.containsKey(identifier)) {
+		for (SoftwareSourceCode softwareResults : softwareSCToHave) {
+			String identifier = softwareResults.getUid().replace("SoftwareSourceCode/", "")
+					.replace("SoftwareApplication/", "");
+			if (tempSoftwaresSC.containsKey(identifier)) {
 				tempSoftwaresSC.get(identifier).add(softwareResults);
-			}else {
+			} else {
 				tempSoftwaresSC.put(identifier, new ArrayList<>());
 				tempSoftwaresSC.get(identifier).add(softwareResults);
 			}
@@ -80,11 +80,12 @@ public class PluginGeneration {
         });
 		
 		ArrayList<Plugin> pluginList = new ArrayList<>();
-		for(ArrayList<SoftwareApplication> items : tempSoftwares.values()) {
-			for(SoftwareApplication item : items) {
+		for (ArrayList<SoftwareApplication> items : tempSoftwares.values()) {
+			for (SoftwareApplication item : items) {
 				String uid = item.getUid().replaceAll("/SoftwareApplication", "").replaceAll("file:///", "");
-				Plugin p = pluginList.stream().filter(plugin->plugin.getIdentifier().equals(uid)).findAny().orElse(null);
-				if(p == null) {
+				Plugin p = pluginList.stream().filter(plugin -> plugin.getIdentifier().equals(uid)).findAny()
+						.orElse(null);
+				if (p == null) {
 					p = new Plugin(uid);
 					pluginList.add(p);
 				}
@@ -111,18 +112,19 @@ public class PluginGeneration {
 						}
 					}
 				});
-				if(item.getRelatedOperation()!=null) p.setOperations(item.getRelatedOperation().stream().map(LinkedEntity::getUid).collect(Collectors.toList()));
+				if(item.getRelatedOperation()!=null) p.setOperations(item.getRelatedOperation().stream().map(LinkedEntity::getInstanceId).collect(Collectors.toList()));
 				p.setAction(action);
 				p.setProxyType(requirements!=null? requirements[0] : null);
 				p.setRequirements(req);
 			}
 		}
-		
-		for(ArrayList<SoftwareSourceCode> items : tempSoftwaresSC.values()) {
-			for(SoftwareSourceCode item : items) {
+
+		for (ArrayList<SoftwareSourceCode> items : tempSoftwaresSC.values()) {
+			for (SoftwareSourceCode item : items) {
 				String uid = item.getUid().replaceAll("/SoftwareSourceCode", "").replaceAll("file:///", "");
-				Plugin p = pluginList.stream().filter(plugin->plugin.getIdentifier().equals(uid)).findAny().orElse(null);
-				if(p == null) {
+				Plugin p = pluginList.stream().filter(plugin -> plugin.getIdentifier().equals(uid)).findAny()
+						.orElse(null);
+				if (p == null) {
 					p = new Plugin(uid);
 					pluginList.add(p);
 				}
@@ -132,18 +134,19 @@ public class PluginGeneration {
 				p.setSoftwareVersion(item.getSoftwareVersion());
 				p.setDocumentationURL(item.getMainEntityofPage());
 				p.setLicense(item.getLicenseURL());
-				p.setLocation("/"+p.getIdentifier()+"/"+p.getSoftwareVersion()+"/");
+				p.setLocation("/" + p.getIdentifier() + "/" + p.getSoftwareVersion() + "/");
 			}
 		}
 		
-		if(parameters.has("operation")) {
-			Plugin singlePlugin = pluginList.stream().filter(e->e.getOperations()!=null).filter(e->e.getOperations().contains(parameters.get("operation").getAsString())).findFirst().orElse(null);
-			pluginList.clear();
-			pluginList.add(singlePlugin);
+		if (parameters.has("operation")) {
+			String operation = parameters.get("operation").getAsString();
+			pluginList.removeIf(e -> {
+				List<String> ops = e.getOperations();
+				return ops == null || !ops.contains(operation);
+			});
 		}
 
-		return pluginList.isEmpty()? new JsonArray() : Utils.gson.toJsonTree(pluginList).getAsJsonArray();
-		
+		return pluginList.isEmpty() ? new JsonArray() : Utils.gson.toJsonTree(pluginList).getAsJsonArray();
 	}
 
 }
