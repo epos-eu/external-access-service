@@ -15,7 +15,8 @@ public enum ContentType {
 	EPOS_GEO_JSON("application/epos.geo+json", JSON),
 	EPOS_ONLY_TABLE_GEO_JSON("application/epos.table.geo+json", JSON),
 	EPOS_ONLY_MAP_GEO_JSON("application/epos.map.geo+json", JSON),
-	EPOS_COVERAGE_JSON("application/epos.coverage+json", JSON),
+	EPOS_COVERAGE_JSON("application/epos.covjson", JSON),
+	EPOS_ONLY_GRAPH_COVERAGE_JSON("application/epos.graph.covjson", JSON),
 	COVERAGE_JSON("covjson", JSON),
 	EPOS_RESULT_SET("application/epos.result", JSON),
 	EPOS_PLAIN_JSON("application/epos.plain+json", JSON);
