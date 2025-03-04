@@ -81,9 +81,7 @@ public class ExternalAccessHandler {
 			}catch(Exception e) {
 				LOGGER.error("Found the following issue whilst executing the WFS Checker, issue raised "+ e.getMessage() + " - Continuing execution");
 			}
-			LOGGER.debug("URL to be executed: "+compiledUrl);
-
-			System.out.println("URL to be executed: "+compiledUrl);
+			LOGGER.info("URL to be executed: "+compiledUrl);
 
 			if (kind.contains("getoriginalurl")) {
 				try {

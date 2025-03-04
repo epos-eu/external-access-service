@@ -102,11 +102,11 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 		try {
 			headers = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
 		} catch (IOException e1) {
-			System.err.println("Error on retrieving headers: "+e1.getLocalizedMessage());
+			LOGGER.error("Error on retrieving headers: "+e1.getLocalizedMessage());
 			try {
 				headers = ExternalServicesRequest.getInstance().requestHeadersUsingHttpsURLConnection(compiledUrl);
 			} catch (IOException e2) {
-				System.err.println("Error on retrieving headers: "+e2.getLocalizedMessage());
+				LOGGER.error("Error on retrieving headers: "+e2.getLocalizedMessage());
 			}
 		}
 
@@ -128,11 +128,11 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				try {
 					responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
 				}catch(IOException e) {
-					System.err.println("Error on retrieving payload: "+e.getLocalizedMessage());
+					LOGGER.error("Error on retrieving payload: "+e.getLocalizedMessage());
 					try {
 						responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
 					} catch (IOException e1) {
-						System.err.println("Error on retrieving payload: "+e1.getLocalizedMessage());
+						LOGGER.error("Error on retrieving payload: "+e1.getLocalizedMessage());
 					}
 				}
 				responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
@@ -186,8 +186,8 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				
 				httpHeaders.add("Location", compiledUrl);
 				httpHeaders.add("content-type", ExternalServicesRequest.getInstance().getContentType(compiledUrl));
-				System.out.println(httpHeaders);
-				System.out.println(compiledUrl);
+				LOGGER.info("Http headers: "+httpHeaders.toString());
+				LOGGER.info("Compiled URL: "+compiledUrl.toString());
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
 						.body(new JsonObject().toString());
