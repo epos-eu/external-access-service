@@ -93,7 +93,7 @@ public class URLGeneration {
 			}
 		}
 
-		System.out.println("TEMPLATE: "+template);
+		LOGGER.info("TEMPLATE: "+template);
 		if(template.endsWith("?")) template = template.substring(0, template.length() - 1);
 
 		return template;
@@ -115,7 +115,6 @@ public class URLGeneration {
 			String[] parameters = segment.replace("?","").split(",");
 			segmentOutput.append("");
 			LOGGER.info("Pre-output: "+segmentOutput.toString());
-			System.out.println("Pre-output: "+segmentOutput.toString());
 			for(int i=0;i<parameters.length;i++) {
 				LOGGER.info("Loop-Start: "+segmentOutput.toString());
 				if(map.containsKey(parameters[i].trim())) {	
@@ -127,7 +126,6 @@ public class URLGeneration {
 					}
 				}
 				LOGGER.info("Loop-End: "+segmentOutput.toString());
-				System.out.println("Loop-End: "+segmentOutput.toString());
 			}
 			//if(iHaveQuestionMark) segmentOutput.insert(0, "?");
 			if(!segmentOutput.toString().equals("")) segmentOutput.insert(0, "?");
@@ -136,7 +134,6 @@ public class URLGeneration {
 			String[] parameters1 = segment.replace("&","").split(",");
 			segmentOutput.append("");
 			LOGGER.info("Pre-output: "+segmentOutput.toString());
-			System.out.println("Pre-output: "+segmentOutput.toString());
 			for(int i=0;i<parameters1.length;i++) { 
 				LOGGER.info("Loop-Start: "+segmentOutput.toString());
 				if(map.containsKey(parameters1[i].trim())) {	
@@ -148,7 +145,6 @@ public class URLGeneration {
 					}
 				}
 				LOGGER.info("Loop-End: "+segmentOutput.toString());
-				System.out.println("Loop-End: "+segmentOutput.toString());
 			}
 			if(!segmentOutput.toString().equals("")) segmentOutput.insert(0, "&");
 			break;
@@ -156,7 +152,6 @@ public class URLGeneration {
 			String[] parameters2 = segment.replace("/","").split(",");
 			segmentOutput.append("");
 			LOGGER.info("Pre-output: "+segmentOutput.toString());
-			System.out.println("Pre-output: "+segmentOutput.toString());
 			for(int i=0;i<parameters2.length;i++) { 
 				LOGGER.info("Loop-Start: "+segmentOutput.toString());
 				if(map.containsKey(parameters2[i].trim())) {	
@@ -168,7 +163,6 @@ public class URLGeneration {
 					}
 				}
 				LOGGER.info("Loop-End: "+segmentOutput.toString());
-				System.out.println("Loop-End: "+segmentOutput.toString());
 			}
 			if(!segmentOutput.toString().equals("")) segmentOutput.insert(0, "/");;
 			break;
@@ -176,7 +170,6 @@ public class URLGeneration {
 			String[] parameters3 = segment.replace("%20AND%20","").split(",");
 			segmentOutput.append("");
 			LOGGER.info("Pre-output: "+segmentOutput.toString());
-			System.out.println("Pre-output: "+segmentOutput.toString());
 			for(int i=0;i<parameters3.length;i++) { 
 				LOGGER.info("Loop-Start: "+segmentOutput.toString());
 				if(map.containsKey(parameters3[i].trim())) {	
@@ -188,7 +181,6 @@ public class URLGeneration {
 					}
 				}
 				LOGGER.info("Loop-End: "+segmentOutput.toString());
-				System.out.println("Loop-End: "+segmentOutput.toString());
 			}
 			if(!segmentOutput.toString().equals("")) segmentOutput.insert(0, "%20AND%20");
 			break;
@@ -211,7 +203,7 @@ public class URLGeneration {
 			break;
 		}
 
-		System.out.println("Segment-output: "+segmentOutput.toString());
+		LOGGER.info("Segment-output: "+segmentOutput.toString());
 
 		return segmentOutput.toString();
 	}

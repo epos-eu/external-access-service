@@ -79,7 +79,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.body().string();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			System.err.println("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
+			LOGGER.error("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -117,7 +117,7 @@ public class ExternalServicesRequest {
 			//return Base64.encode(response.body().bytes());
 			return Base64.getEncoder().encodeToString(response.body().bytes());
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			System.err.println("Error on requesting payload image for URL: "+url+" cause: "+e.getLocalizedMessage());
+			LOGGER.error("Error on requesting payload image for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -137,7 +137,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.headers().toMultimap();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			System.err.println("Error on requesting headers for URL: "+url+" cause: "+e.getLocalizedMessage());
+			LOGGER.error("Error on requesting headers for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -170,7 +170,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return Integer.toString(response.code());
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			System.err.println("Error on requesting status codes for URL: "+url+" cause: "+e.getLocalizedMessage());
+			LOGGER.error("Error on requesting status codes for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -188,11 +188,11 @@ public class ExternalServicesRequest {
 				.build();
 
 		try (Response response = builder.build().newCall(request).execute()) {
-			System.out.println(response);
+			LOGGER.info("Response: "+response);
 			return response.body().contentType().toString();
 			
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			System.err.println("Error on requesting content types for URL: "+url+" cause: "+e.getLocalizedMessage());
+			LOGGER.error("Error on requesting content types for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -209,7 +209,7 @@ public class ExternalServicesRequest {
 				.build();
 
 		try (Response response = builder.build().newCall(request).execute()) {
-			System.out.println(response);
+			LOGGER.info("Response: "+response);
 
 			Map<String, Object> responseMap = new HashMap<>();
 			String contentType = response.body().contentType().toString();	
@@ -220,7 +220,7 @@ public class ExternalServicesRequest {
 			responseMap.put("redirect-url", url);
 			return responseMap;
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			System.err.println("Error on requesting redirect for URL: "+url+" cause: "+e.getLocalizedMessage());
+			LOGGER.error("Error on requesting redirect for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
