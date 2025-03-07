@@ -104,7 +104,7 @@ public class ExternalAccessHandler {
 						responseMap.remove("content");
 						responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
 					} catch (IOException e) {
-						LOGGER.error(e.getMessage());
+						e.printStackTrace();
 						LOGGER.error("Impossible to get any response from "+compiledUrl);
 						responseMap = new HashMap<>();
 						responseMap.put("httpStatusCode", "503");
