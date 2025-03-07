@@ -197,7 +197,7 @@ public class URLGeneration {
 					segmentOutput.append(aux);
 				}
 			}catch(Exception e) {
-				LOGGER.error(e.getMessage());
+				LOGGER.error(e.toString());
 				return null;
 			}
 			break;

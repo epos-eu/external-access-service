@@ -37,7 +37,7 @@ public class ExternalAccessHandler {
 				String compiledUrl = URLGeneration.ogcWFSChecker(distr.getServiceEndpoint());
 				return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
 			} catch (Exception ex) {
-				LOGGER.error(ex.getMessage());
+				LOGGER.error(ex.toString());
 				return null;
 			}
 		default:
@@ -79,7 +79,7 @@ public class ExternalAccessHandler {
 			try {
 				compiledUrl = URLGeneration.ogcWFSChecker(compiledUrl);
 			}catch(Exception e) {
-				LOGGER.error("Found the following issue whilst executing the WFS Checker, issue raised "+ e.getMessage() + " - Continuing execution");
+				LOGGER.error("Found the following issue whilst executing the WFS Checker, issue raised "+ e.toString() + " - Continuing execution");
 			}
 			LOGGER.info("URL to be executed: "+compiledUrl);
 
@@ -88,7 +88,7 @@ public class ExternalAccessHandler {
 					responseMap.put("url", compiledUrl);
 					return responseMap;
 				} catch (Exception ex) {
-					LOGGER.error("Issue raised "+ex.getMessage()+" sending back a 503 message");
+					LOGGER.error("Issue raised "+ex.toString()+" sending back a 503 message");
 					responseMap.put("httpStatusCode", "503");
 					return responseMap;
 				}
@@ -104,7 +104,7 @@ public class ExternalAccessHandler {
 						responseMap.remove("content");
 						responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
 					} catch (IOException e) {
-						e.printStackTrace();
+						LOGGER.error(e.toString());
 						LOGGER.error("Impossible to get any response from "+compiledUrl);
 						responseMap = new HashMap<>();
 						responseMap.put("httpStatusCode", "503");
@@ -139,7 +139,7 @@ public class ExternalAccessHandler {
 
 						return responseMap;
 					} catch (Exception ex) {
-						LOGGER.error(ex.getMessage());
+						LOGGER.error(ex.toString());
 						LOGGER.error("No Conversion parameter provided, sending back a 503 message");
 						responseMap.put("httpStatusCode", "503");
 						return responseMap;
@@ -150,7 +150,7 @@ public class ExternalAccessHandler {
 				try {
 					return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
 				} catch (Exception ex) {
-					LOGGER.error("Issue raised "+ex.getMessage()+" sending back a 503 message");
+					LOGGER.error("Issue raised "+ex.toString()+" sending back a 503 message");
 					responseMap.put("httpStatusCode", "503");
 					return responseMap;
 				}
