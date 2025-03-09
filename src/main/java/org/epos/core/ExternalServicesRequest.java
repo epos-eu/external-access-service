@@ -1,30 +1,28 @@
 package org.epos.core;
 
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.net.InetAddress;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
+import okhttp3.Dns;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.slf4j.Logger;
@@ -38,39 +36,105 @@ import okhttp3.Response;
 public class ExternalServicesRequest {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
-	
+
 	private static ExternalServicesRequest instance = null;
-	
-	//final OkHttpClient client = new OkHttpClient();
+
 	static OkHttpClient.Builder builder;
 	static SSLContext sslContext = null;
 
-	
+	private static final Map<String, String> dnsCache = new ConcurrentHashMap<>();
+
 	public static ExternalServicesRequest getInstance() {
 		//System.setProperty("jsse.enableSNIExtension", "false");
-        if (instance == null) {
-            instance = new ExternalServicesRequest();
-            builder = new OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).connectTimeout(10, TimeUnit.SECONDS);
-            sslContext = getLenientSSLContext();
+		if (instance == null) {
+			instance = new ExternalServicesRequest();
+			builder = new OkHttpClient.Builder()
+					.dns(Dns.SYSTEM)
+					.readTimeout(30, TimeUnit.SECONDS)
+					.connectTimeout(10, TimeUnit.SECONDS)
+					.callTimeout(30, TimeUnit.SECONDS);
+			sslContext = getLenientSSLContext();
 
-            try {
+			try {
 				builder.sslSocketFactory(new CustomSSLSocketFactory(), defaultTrustManager());
 			} catch (IOException e) {
 				LOGGER.error(e.getLocalizedMessage());
 				builder.sslSocketFactory(sslContext.getSocketFactory(), defaultTrustManager());
 			}
-            builder.hostnameVerifier(new HostnameVerifier() {
-                @Override
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            });
-            builder.callTimeout(30, TimeUnit.SECONDS);
-        }
-        return instance;
-    }
+			builder.hostnameVerifier((hostname, session) -> true);
+		}
+		return instance;
+	}
 
 	public String requestPayload(String url) throws IOException {
+		LOGGER.info("Requesting payload for URL -> " + url);
+		return executeRequest(url);
+	}
+
+	private String executeRequest(String url) throws IOException {
+		Request request = new Request.Builder().url(url).build();
+
+		try (Response response = builder.build().newCall(request).execute()) {
+			return handleResponse(response);
+		} catch (UnknownHostException e) {
+			LOGGER.error("DNS resolution failed for: " + url + ". Trying manual resolution...");
+			return tryWithManualDns(url);
+		}
+	}
+
+	private String handleResponse(Response response) throws IOException {
+		if (!response.isSuccessful()) {
+			LOGGER.error("HTTP request failed with code: " + response.code());
+			return null;
+		}
+		return response.body().string();
+	}
+
+	private String tryWithManualDns(String url) {
+		try {
+			String hostname = extractHostname(url);
+			String ip = resolveIp(hostname);
+			if (ip == null) {
+				LOGGER.error("Could not resolve IP for: " + hostname);
+				return null;
+			}
+
+			LOGGER.info("Resolved IP for {}: {}", hostname, ip);
+			String newUrl = url.replace(hostname, ip);
+
+			Request request = new Request.Builder()
+					.url(newUrl)
+					.header("Host", hostname) // Necessario per HTTPS
+					.build();
+
+			try (Response response = builder.build().newCall(request).execute()) {
+				return handleResponse(response);
+			}
+		} catch (Exception e) {
+			LOGGER.error("Manual DNS resolution failed.", e);
+		}
+		return null;
+	}
+
+	private String extractHostname(String url) {
+		return url.split("/")[2];
+	}
+
+	/**
+	 * Risolve l'IP di un hostname con caching.
+	 */
+	private String resolveIp(String hostname) {
+		return dnsCache.computeIfAbsent(hostname, host -> {
+			try {
+				InetAddress address = InetAddress.getByName(host);
+				return address.getHostAddress();
+			} catch (UnknownHostException e) {
+				LOGGER.error("Failed to resolve IP for: {}", host);
+				return null;
+			}
+		});
+	}
+	/*public String requestPayload(String url) throws IOException {
 		LOGGER.info("Requesting payload for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
@@ -85,49 +149,10 @@ public class ExternalServicesRequest {
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
 				return response.body().string();
-			} 
+			}
 		}
-	}
-	
-	public String requestPayloadUsingHttpsURLConnection(String url) throws IOException {
-	    LOGGER.info("Requesting payload for URL -> " + url);
-	    URL requestUrl = new URL(url);
-	    HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
+	}*/
 
-	    connection.setHostnameVerifier((hostname, session) -> true);
-
-	    try (InputStream inputStream = connection.getInputStream();
-	         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-	        StringBuilder response = new StringBuilder();
-	        String line;
-	        while ((line = reader.readLine()) != null) {
-	            response.append(line);
-	        }
-	        return response.toString();
-	    }
-	}
-	
-	public String requestPayloadImage(String url) throws IOException {
-		LOGGER.info("Requesting payload image for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
-
-		try (Response response = builder.build().newCall(request).execute()) {
-			//return Base64.encode(response.body().bytes());
-			return Base64.getEncoder().encodeToString(response.body().bytes());
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting payload image for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
-			try (Response response = builder.build().newCall(request).execute()) {
-				//return Base64.encode(response.body().bytes());
-				return Base64.getEncoder().encodeToString(response.body().bytes());
-			} 
-		}
-	}
-	
 	public Map<String, List<String>> requestHeaders(String url) throws IOException {
 		LOGGER.info("Requesting headers for URL -> "+url);
 		Request request = new Request.Builder()
@@ -143,54 +168,35 @@ public class ExternalServicesRequest {
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
 				return response.headers().toMultimap();
-			} 
+			}
 		}
 	}
-	
+
 	public Map<String, List<String>> requestHeadersUsingHttpsURLConnection(String url) throws IOException {
-	    LOGGER.info("Requesting headers for URL -> " + url);
-	    URL requestUrl = new URL(url);
-	    HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
+		LOGGER.info("Requesting headers for URL -> " + url);
+		URL requestUrl = new URL(url);
+		HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
 
-	    try {
-	        Map<String, List<String>> headers = connection.getHeaderFields();
-	        return headers;
-	    } finally {
-	        connection.disconnect();
-	    }
-	}
-	
-	
-	public String getHttpStatusCode(String url) throws IOException {
-		LOGGER.info("Requesting status code for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
-
-		try (Response response = builder.build().newCall(request).execute()) {
-			return Integer.toString(response.code());
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting status codes for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
-			try (Response response = builder.build().newCall(request).execute()) {
-				return Integer.toString(response.code());
-			} 
+		try {
+			Map<String, List<String>> headers = connection.getHeaderFields();
+			return headers;
+		} finally {
+			connection.disconnect();
 		}
 	}
-	
+
+
 	public String getContentType(String url) throws IOException {
 		LOGGER.info("Requesting content type for URL -> "+url);
 		Request request = new Request.Builder()
 				.url(url)
-                .head()
+				.head()
 				.build();
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			LOGGER.info("Response: "+response);
 			return response.body().contentType().toString();
-			
+
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			LOGGER.error("Error on requesting content types for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
@@ -198,10 +204,10 @@ public class ExternalServicesRequest {
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
 				return response.body().contentType().toString();
-			} 
+			}
 		}
 	}
-	
+
 	public Map<String, Object> getRedirect(String url) throws IOException {
 		LOGGER.info("Requesting redirect for URL -> "+url);
 		Request request = new Request.Builder()
@@ -212,9 +218,9 @@ public class ExternalServicesRequest {
 			LOGGER.info("Response: "+response);
 
 			Map<String, Object> responseMap = new HashMap<>();
-			String contentType = response.body().contentType().toString();	
+			String contentType = response.body().contentType().toString();
 			String httpStatusCode = Integer.toString(response.code());
-			
+
 			responseMap.put("content-type", contentType);
 			responseMap.put("httpStatusCode", httpStatusCode);
 			responseMap.put("redirect-url", url);
@@ -226,21 +232,21 @@ public class ExternalServicesRequest {
 					.build();
 			try (Response response = builder.build().newCall(request).execute()) {
 				Map<String, Object> responseMap = new HashMap<>();
-				String contentType = response.body().contentType().toString();	
+				String contentType = response.body().contentType().toString();
 				String httpStatusCode = Integer.toString(response.code());
-				
+
 				responseMap.put("content-type", contentType);
 				responseMap.put("httpStatusCode", httpStatusCode);
 				responseMap.put("redirect-url", url);
 				return responseMap;
-			} 
+			}
 		}
 	}
-	
+
 	/*
 	 * SSL Context
 	 */
-	
+
 	private static SSLContext getLenientSSLContext()
 	{
 		X509TrustManager[] trustManagers = LenientX509TrustManager.wrap(defaultTrustManager());
@@ -249,7 +255,7 @@ public class ExternalServicesRequest {
 			sslContext = SSLContext.getInstance("TLS");
 			sslContext.init(null, trustManagers, new java.security.SecureRandom());
 			//sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
-			
+
 		} catch (NoSuchAlgorithmException | KeyManagementException e) {
 			throw new IllegalStateException(String.format(
 					"Failed to obtain an SSL Context for TCS Service request. %s",
@@ -257,30 +263,30 @@ public class ExternalServicesRequest {
 		}
 		return sslContext;
 	}
-	
-	private static X509TrustManager defaultTrustManager() 
+
+	private static X509TrustManager defaultTrustManager()
 	{
-	    TrustManager[] trustManagers = defaultTrustManagerFactory().getTrustManagers();
-	    if (trustManagers.length != 1) {
-	        throw new IllegalStateException("Unexpected default trust managers:"
-	                                        + Arrays.toString(trustManagers));
-	    }
-	    TrustManager trustManager = trustManagers[0];
-	    if (trustManager instanceof X509TrustManager) {
-	        return (X509TrustManager) trustManager;
-	    }
-	    throw new IllegalStateException("'" + trustManager + "' is not a X509TrustManager");
+		TrustManager[] trustManagers = defaultTrustManagerFactory().getTrustManagers();
+		if (trustManagers.length != 1) {
+			throw new IllegalStateException("Unexpected default trust managers:"
+					+ Arrays.toString(trustManagers));
+		}
+		TrustManager trustManager = trustManagers[0];
+		if (trustManager instanceof X509TrustManager) {
+			return (X509TrustManager) trustManager;
+		}
+		throw new IllegalStateException("'" + trustManager + "' is not a X509TrustManager");
 	}
 
 
-	private static TrustManagerFactory defaultTrustManagerFactory() 
+	private static TrustManagerFactory defaultTrustManagerFactory()
 	{
-	    try {
-	        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-	        tmf.init((KeyStore) null);
-	        return tmf;
-	    } catch (NoSuchAlgorithmException | KeyStoreException e) {
-	        throw new IllegalStateException("Can't load default trust manager", e);
-	    }
+		try {
+			TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+			tmf.init((KeyStore) null);
+			return tmf;
+		} catch (NoSuchAlgorithmException | KeyStoreException e) {
+			throw new IllegalStateException("Can't load default trust manager", e);
+		}
 	}
 }
