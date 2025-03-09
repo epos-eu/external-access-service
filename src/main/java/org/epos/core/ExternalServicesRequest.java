@@ -1,28 +1,30 @@
 package org.epos.core;
 
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.InetAddress;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
-import okhttp3.Dns;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.slf4j.Logger;
@@ -35,25 +37,21 @@ import okhttp3.Response;
 
 public class ExternalServicesRequest {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalServicesRequest.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
 
 	private static ExternalServicesRequest instance = null;
 
+	//final OkHttpClient client = new OkHttpClient();
 	static OkHttpClient.Builder builder;
 	static SSLContext sslContext = null;
 
-	private static final Map<String, String> dnsCache = new ConcurrentHashMap<>();
 
 	public static ExternalServicesRequest getInstance() {
 		//System.setProperty("jsse.enableSNIExtension", "false");
 		if (instance == null) {
 			instance = new ExternalServicesRequest();
-            builder = new OkHttpClient.Builder()
-                    //.dns(new CustomDns())
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .callTimeout(30, TimeUnit.SECONDS);
-            sslContext = getLenientSSLContext();
+			builder = new OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).connectTimeout(10, TimeUnit.SECONDS);
+			sslContext = getLenientSSLContext();
 
 			try {
 				builder.sslSocketFactory(new CustomSSLSocketFactory(), defaultTrustManager());
@@ -61,78 +59,73 @@ public class ExternalServicesRequest {
 				LOGGER.error(e.getLocalizedMessage());
 				builder.sslSocketFactory(sslContext.getSocketFactory(), defaultTrustManager());
 			}
-			builder.hostnameVerifier((hostname, session) -> true);
+			builder.hostnameVerifier(new HostnameVerifier() {
+				@Override
+				public boolean verify(String hostname, SSLSession session) {
+					return true;
+				}
+			});
+			builder.callTimeout(30, TimeUnit.SECONDS);
 		}
 		return instance;
 	}
 
 	public String requestPayload(String url) throws IOException {
-        LOGGER.info("Requesting payload for URL -> {}", url);
-		return executeRequest(url);
-	}
-
-	private String executeRequest(String url) throws IOException {
-		Request request = new Request.Builder().url(url).build();
+		LOGGER.info("Requesting payload for URL -> "+url);
+		Request request = new Request.Builder()
+				.url(url)
+				.build();
 
 		try (Response response = builder.build().newCall(request).execute()) {
-			return handleResponse(response);
-		} catch (UnknownHostException e) {
-            LOGGER.error("DNS resolution failed for: {}. Trying manual resolution...", url);
-			return tryWithManualDns(url);
-		}
-	}
-
-	private String handleResponse(Response response) throws IOException {
-		if (!response.isSuccessful()) {
-            LOGGER.error("HTTP request failed with code: {}", response.code());
-			return null;
-		}
-		return response.body().string();
-	}
-
-	private String tryWithManualDns(String url) {
-		try {
-			String hostname = extractHostname(url);
-			String ip = resolveIp(hostname);
-			if (ip == null) {
-                LOGGER.error("Could not resolve IP for: {}", hostname);
-				return null;
-			}
-
-			LOGGER.info("Resolved IP for {}: {}", hostname, ip);
-			String newUrl = url.replace(hostname, ip);
-
-			Request request = new Request.Builder()
-					.url(newUrl)
-					.header("Host", hostname)
+			return response.body().string();
+		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
+			LOGGER.error("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
+			request = new Request.Builder()
+					.url(url.replace("https://", "https://www."))
 					.build();
-
 			try (Response response = builder.build().newCall(request).execute()) {
-				return handleResponse(response);
+				return response.body().string();
 			}
-		} catch (Exception e) {
-			LOGGER.error("Manual DNS resolution failed.", e);
 		}
-		return null;
 	}
 
-	private String extractHostname(String url) {
-		return url.split("/")[2];
-	}
+	public String requestPayloadUsingHttpsURLConnection(String url) throws IOException {
+		LOGGER.info("Requesting payload for URL -> " + url);
+		URL requestUrl = new URL(url);
+		HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
 
-	/**
-	 * Risolve l'IP di un hostname con caching.
-	 */
-	private String resolveIp(String hostname) {
-		return dnsCache.computeIfAbsent(hostname, host -> {
-			try {
-				InetAddress address = InetAddress.getByName(host);
-				return address.getHostAddress();
-			} catch (UnknownHostException e) {
-				LOGGER.error("Failed to resolve IP for: {}", host);
-				return null;
+		connection.setHostnameVerifier((hostname, session) -> true);
+
+		try (InputStream inputStream = connection.getInputStream();
+			 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+			StringBuilder response = new StringBuilder();
+			String line;
+			while ((line = reader.readLine()) != null) {
+				response.append(line);
 			}
-		});
+			return response.toString();
+		}
+	}
+
+	public String requestPayloadImage(String url) throws IOException {
+		LOGGER.info("Requesting payload image for URL -> "+url);
+		Request request = new Request.Builder()
+				.url(url)
+				.build();
+
+		try (Response response = builder.build().newCall(request).execute()) {
+			//return Base64.encode(response.body().bytes());
+			return Base64.getEncoder().encodeToString(response.body().bytes());
+		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
+			LOGGER.error("Error on requesting payload image for URL: "+url+" cause: "+e.getLocalizedMessage());
+			request = new Request.Builder()
+					.url(url.replace("https://", "https://www."))
+					.build();
+			try (Response response = builder.build().newCall(request).execute()) {
+				//return Base64.encode(response.body().bytes());
+				return Base64.getEncoder().encodeToString(response.body().bytes());
+			}
+		}
 	}
 
 	public Map<String, List<String>> requestHeaders(String url) throws IOException {
@@ -144,7 +137,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.headers().toMultimap();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-            LOGGER.error("Error on requesting headers for URL: {} cause: {}", url, e.getLocalizedMessage());
+			LOGGER.error("Error on requesting headers for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -160,12 +153,32 @@ public class ExternalServicesRequest {
 		HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
 
 		try {
-            return connection.getHeaderFields();
+			Map<String, List<String>> headers = connection.getHeaderFields();
+			return headers;
 		} finally {
 			connection.disconnect();
 		}
 	}
 
+
+	public String getHttpStatusCode(String url) throws IOException {
+		LOGGER.info("Requesting status code for URL -> "+url);
+		Request request = new Request.Builder()
+				.url(url)
+				.build();
+
+		try (Response response = builder.build().newCall(request).execute()) {
+			return Integer.toString(response.code());
+		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
+			LOGGER.error("Error on requesting status codes for URL: "+url+" cause: "+e.getLocalizedMessage());
+			request = new Request.Builder()
+					.url(url.replace("https://", "https://www."))
+					.build();
+			try (Response response = builder.build().newCall(request).execute()) {
+				return Integer.toString(response.code());
+			}
+		}
+	}
 
 	public String getContentType(String url) throws IOException {
 		LOGGER.info("Requesting content type for URL -> "+url);

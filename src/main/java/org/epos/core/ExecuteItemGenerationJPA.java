@@ -84,18 +84,18 @@ public class ExecuteItemGenerationJPA {
 			distribution.setDownloadURL(
 					Optional.of(
 							distributionSelected.getDistributionDownloadurlsByInstanceId().stream()
-							.map(EDMDistributionDownloadurl::getDownloadurl).collect(Collectors.joining("."))
-							).orElse(null)
-					);
+									.map(EDMDistributionDownloadurl::getDownloadurl).collect(Collectors.joining("."))
+					).orElse(null)
+			);
 		}
 
 		if (distributionSelected.getAccessURLByInstanceId() != null) {
 			distribution.setEndpoint(
 					Optional.of(
 							distributionSelected.getAccessURLByInstanceId().stream()
-							.map(EDMDistributionAccessURL::getOperationByInstanceOperationId).map(EDMOperation::getTemplate).collect(Collectors.joining("."))
-							).orElse(null)
-					);
+									.map(EDMDistributionAccessURL::getOperationByInstanceOperationId).map(EDMOperation::getTemplate).collect(Collectors.joining("."))
+					).orElse(null)
+			);
 		}
 
 		distribution.setLicense(Optional.ofNullable(distributionSelected.getLicense()).orElse(null));
@@ -115,7 +115,7 @@ public class ExecuteItemGenerationJPA {
 							mp.getMappingParamvaluesById() != null ?
 									mp.getMappingParamvaluesById().stream().map(EDMMappingParamvalue::getParamvalue).collect(Collectors.toList())
 									: new ArrayList<>()
-							);
+					);
 					sp.setName(mp.getVariable());
 					sp.setMaxValue(mp.getMaxvalue());
 					sp.setMinValue(mp.getMinvalue());
