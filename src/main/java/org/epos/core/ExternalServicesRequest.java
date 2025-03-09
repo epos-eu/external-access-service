@@ -48,15 +48,11 @@ public class ExternalServicesRequest {
 		//System.setProperty("jsse.enableSNIExtension", "false");
 		if (instance == null) {
 			instance = new ExternalServicesRequest();
-            try {
-                builder = new OkHttpClient.Builder()
-                        .dns(new CustomDns())
-                        .readTimeout(30, TimeUnit.SECONDS)
-                        .connectTimeout(10, TimeUnit.SECONDS)
-                        .callTimeout(30, TimeUnit.SECONDS);
-            } catch (UnknownHostException e) {
-                throw new RuntimeException(e);
-            }
+            builder = new OkHttpClient.Builder()
+                    //.dns(new CustomDns())
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .callTimeout(30, TimeUnit.SECONDS);
             sslContext = getLenientSSLContext();
 
 			try {
