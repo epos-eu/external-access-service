@@ -35,7 +35,7 @@ import okhttp3.Response;
 
 public class ExternalServicesRequest {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalServicesRequest.class);
 
 	private static ExternalServicesRequest instance = null;
 
@@ -48,12 +48,16 @@ public class ExternalServicesRequest {
 		//System.setProperty("jsse.enableSNIExtension", "false");
 		if (instance == null) {
 			instance = new ExternalServicesRequest();
-			builder = new OkHttpClient.Builder()
-					.dns(Dns.SYSTEM)
-					.readTimeout(30, TimeUnit.SECONDS)
-					.connectTimeout(10, TimeUnit.SECONDS)
-					.callTimeout(30, TimeUnit.SECONDS);
-			sslContext = getLenientSSLContext();
+            try {
+                builder = new OkHttpClient.Builder()
+                        .dns(new CustomDns())
+                        .readTimeout(30, TimeUnit.SECONDS)
+                        .connectTimeout(10, TimeUnit.SECONDS)
+                        .callTimeout(30, TimeUnit.SECONDS);
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
+            sslContext = getLenientSSLContext();
 
 			try {
 				builder.sslSocketFactory(new CustomSSLSocketFactory(), defaultTrustManager());
@@ -67,7 +71,7 @@ public class ExternalServicesRequest {
 	}
 
 	public String requestPayload(String url) throws IOException {
-		LOGGER.info("Requesting payload for URL -> " + url);
+        LOGGER.info("Requesting payload for URL -> {}", url);
 		return executeRequest(url);
 	}
 
@@ -77,14 +81,14 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return handleResponse(response);
 		} catch (UnknownHostException e) {
-			LOGGER.error("DNS resolution failed for: " + url + ". Trying manual resolution...");
+            LOGGER.error("DNS resolution failed for: {}. Trying manual resolution...", url);
 			return tryWithManualDns(url);
 		}
 	}
 
 	private String handleResponse(Response response) throws IOException {
 		if (!response.isSuccessful()) {
-			LOGGER.error("HTTP request failed with code: " + response.code());
+            LOGGER.error("HTTP request failed with code: {}", response.code());
 			return null;
 		}
 		return response.body().string();
@@ -95,7 +99,7 @@ public class ExternalServicesRequest {
 			String hostname = extractHostname(url);
 			String ip = resolveIp(hostname);
 			if (ip == null) {
-				LOGGER.error("Could not resolve IP for: " + hostname);
+                LOGGER.error("Could not resolve IP for: {}", hostname);
 				return null;
 			}
 
@@ -104,7 +108,7 @@ public class ExternalServicesRequest {
 
 			Request request = new Request.Builder()
 					.url(newUrl)
-					.header("Host", hostname) // Necessario per HTTPS
+					.header("Host", hostname)
 					.build();
 
 			try (Response response = builder.build().newCall(request).execute()) {
@@ -134,24 +138,6 @@ public class ExternalServicesRequest {
 			}
 		});
 	}
-	/*public String requestPayload(String url) throws IOException {
-		LOGGER.info("Requesting payload for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
-
-		try (Response response = builder.build().newCall(request).execute()) {
-			return response.body().string();
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
-			try (Response response = builder.build().newCall(request).execute()) {
-				return response.body().string();
-			}
-		}
-	}*/
 
 	public Map<String, List<String>> requestHeaders(String url) throws IOException {
 		LOGGER.info("Requesting headers for URL -> "+url);
@@ -162,7 +148,7 @@ public class ExternalServicesRequest {
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.headers().toMultimap();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting headers for URL: "+url+" cause: "+e.getLocalizedMessage());
+            LOGGER.error("Error on requesting headers for URL: {} cause: {}", url, e.getLocalizedMessage());
 			request = new Request.Builder()
 					.url(url.replace("https://", "https://www."))
 					.build();
@@ -178,8 +164,7 @@ public class ExternalServicesRequest {
 		HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
 
 		try {
-			Map<String, List<String>> headers = connection.getHeaderFields();
-			return headers;
+            return connection.getHeaderFields();
 		} finally {
 			connection.disconnect();
 		}
