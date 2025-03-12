@@ -210,7 +210,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 		Map<String, Object> handlerResponse = ExternalAccessHandler.handle(response, "execute", conversion,
 				requestParams);
 
-		LOGGER.info("Handler response: " + handlerResponse.toString());
+		LOGGER.debug("Handler response: " + handlerResponse.toString());
 
 		String responseCode = "OK";
 
@@ -295,7 +295,7 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 					if (handlerResponse.containsKey("content-type"))
 						errorMessage.setContentType(handlerResponse.get("content-type").toString());
 
-					System.out.println(errorMessage.toString());
+					LOGGER.info(errorMessage.toString());
 
 					return ResponseEntity.status(HttpStatus.valueOf(responseCode))
 							.body(Utils.gson.toJsonTree(errorMessage).toString());

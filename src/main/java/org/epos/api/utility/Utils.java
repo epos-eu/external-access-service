@@ -89,7 +89,7 @@ public class Utils {
 				field.set(result, value);
 			}
 		} catch (Exception e) {
-			LOGGER.error(e.getMessage());
+			LOGGER.error(e.toString());
 		}
 		return (T) result;
 	}
