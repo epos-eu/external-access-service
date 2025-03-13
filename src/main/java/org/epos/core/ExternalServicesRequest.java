@@ -68,7 +68,7 @@ public class ExternalServicesRequest {
 				}
 			});
 			builder.callTimeout(30, TimeUnit.SECONDS);
-			builder.dns(ExternalServicesRequest::resolveWithFallback).retryOnConnectionFailure(true);
+			//builder.dns(ExternalServicesRequest::resolveWithFallback).retryOnConnectionFailure(true);
 		}
 		return instance;
 	}
