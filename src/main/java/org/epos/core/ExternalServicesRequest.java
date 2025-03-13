@@ -38,7 +38,7 @@ import okhttp3.Response;
 
 public class ExternalServicesRequest {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalServicesRequest.class);
 
 	private static ExternalServicesRequest instance = null;
 
