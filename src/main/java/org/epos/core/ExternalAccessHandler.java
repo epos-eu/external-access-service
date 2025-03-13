@@ -101,8 +101,12 @@ public class ExternalAccessHandler {
                         LOGGER.debug("Is native GeoJSON or CovJSON");
                         try {
                             String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
-                            responseMap.remove("content");
-                            responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
+                            if(responsePayload!=null) responseMap.put("content", responsePayload.isEmpty() ? "{}" : responsePayload);
+                            else {
+                                responseMap = new HashMap<>();
+                                responseMap.put("httpStatusCode", "400");
+                                return responseMap;
+                            }
                         } catch (IOException e) {
                             LOGGER.error(e.toString());
                             LOGGER.error("Impossible to get any response from "+compiledUrl);
