@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -70,11 +71,36 @@ public class ExternalServicesRequest {
 		return instance;
 	}
 
+	public Request generateRequest(String urlString){
+        return new Request.Builder()
+				.url(urlString)
+				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
+				.addHeader("Accept", "application/json, text/plain, */*")
+				.addHeader("Accept-Language", "en-US,en;q=0.9")
+				.addHeader("Connection", "keep-alive")
+				.addHeader("Host", getHostFromUrl(urlString)) // Extracts Host dynamically
+				.build();
+    }
+
+	public Request generateRequestHead(String urlString){
+		return new Request.Builder()
+				.url(urlString)
+				.head()
+				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
+				.addHeader("Accept", "application/json, text/plain, */*")
+				.addHeader("Accept-Language", "en-US,en;q=0.9")
+				.addHeader("Connection", "keep-alive")
+				.addHeader("Host", getHostFromUrl(urlString)) // Extracts Host dynamically
+				.build();
+	}
+
+	private static String getHostFromUrl(String urlString) {
+		return urlString.replaceFirst("https?://", "").split("/")[0];
+	}
+
 	public String requestPayload(String url) throws IOException {
 		LOGGER.info("Requesting payload for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
+		Request request = generateRequest(url);
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.body().string();
@@ -89,50 +115,9 @@ public class ExternalServicesRequest {
 		}
 	}
 
-	public String requestPayloadUsingHttpsURLConnection(String url) throws IOException {
-		LOGGER.info("Requesting payload for URL -> " + url);
-		URL requestUrl = new URL(url);
-		HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
-
-		connection.setHostnameVerifier((hostname, session) -> true);
-
-		try (InputStream inputStream = connection.getInputStream();
-			 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-			StringBuilder response = new StringBuilder();
-			String line;
-			while ((line = reader.readLine()) != null) {
-				response.append(line);
-			}
-			return response.toString();
-		}
-	}
-
-	public String requestPayloadImage(String url) throws IOException {
-		LOGGER.info("Requesting payload image for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
-
-		try (Response response = builder.build().newCall(request).execute()) {
-			//return Base64.encode(response.body().bytes());
-			return Base64.getEncoder().encodeToString(response.body().bytes());
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting payload image for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
-			try (Response response = builder.build().newCall(request).execute()) {
-				//return Base64.encode(response.body().bytes());
-				return Base64.getEncoder().encodeToString(response.body().bytes());
-			}
-		}
-	}
-
 	public Map<String, List<String>> requestHeaders(String url) throws IOException {
 		LOGGER.info("Requesting headers for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
+		Request request = generateRequest(url);
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			return response.headers().toMultimap();
@@ -160,32 +145,9 @@ public class ExternalServicesRequest {
 		}
 	}
 
-
-	public String getHttpStatusCode(String url) throws IOException {
-		LOGGER.info("Requesting status code for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
-
-		try (Response response = builder.build().newCall(request).execute()) {
-			return Integer.toString(response.code());
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting status codes for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
-			try (Response response = builder.build().newCall(request).execute()) {
-				return Integer.toString(response.code());
-			}
-		}
-	}
-
 	public String getContentType(String url) throws IOException {
 		LOGGER.info("Requesting content type for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.head()
-				.build();
+		Request request = generateRequestHead(url);
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			LOGGER.info("Response: "+response);
@@ -204,9 +166,7 @@ public class ExternalServicesRequest {
 
 	public Map<String, Object> getRedirect(String url) throws IOException {
 		LOGGER.info("Requesting redirect for URL -> "+url);
-		Request request = new Request.Builder()
-				.url(url)
-				.build();
+		Request request = generateRequest(url);
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			LOGGER.info("Response: "+response);
@@ -221,9 +181,7 @@ public class ExternalServicesRequest {
 			return responseMap;
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			LOGGER.error("Error on requesting redirect for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
+			request = generateRequest(url.replace("https://", "https://www."));
 			try (Response response = builder.build().newCall(request).execute()) {
 				Map<String, Object> responseMap = new HashMap<>();
 				String contentType = response.body().contentType().toString();
