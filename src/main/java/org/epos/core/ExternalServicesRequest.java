@@ -5,8 +5,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -26,6 +28,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
+import okhttp3.Dns;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.slf4j.Logger;
@@ -48,7 +51,6 @@ public class ExternalServicesRequest {
 
 
 	public static ExternalServicesRequest getInstance() {
-		//System.setProperty("jsse.enableSNIExtension", "false");
 		if (instance == null) {
 			instance = new ExternalServicesRequest();
 			builder = new OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).connectTimeout(10, TimeUnit.SECONDS);
@@ -67,6 +69,18 @@ public class ExternalServicesRequest {
 				}
 			});
 			builder.callTimeout(30, TimeUnit.SECONDS);
+			builder.dns(hostname -> {
+				try {
+					// Use Google DNS first
+					return Arrays.asList(
+							InetAddress.getByName("8.8.8.8"),
+							InetAddress.getByName("8.8.4.4")
+					);
+				} catch (UnknownHostException e) {
+					// Fallback to system DNS
+					return Dns.SYSTEM.lookup(hostname);
+				}
+			}).retryOnConnectionFailure(true);
 		}
 		return instance;
 	}
