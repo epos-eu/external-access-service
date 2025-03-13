@@ -84,16 +84,6 @@ public class ExternalServicesRequest {
 	}
 
 	public Request generateRequest(String urlString){
-        URL url = null;
-        try {
-            url = new URL(urlString);
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
-        String host = url.getHost();
-		String ip = resolveHostToIp(host);
-		urlString = urlString.replace(host, ip);
-
 		return new Request.Builder()
 				.url(urlString)
 				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
@@ -105,15 +95,6 @@ public class ExternalServicesRequest {
     }
 
 	public Request generateRequestHead(String urlString){
-		URL url = null;
-		try {
-			url = new URL(urlString);
-		} catch (MalformedURLException e) {
-			throw new RuntimeException(e);
-		}
-		String host = url.getHost();
-		String ip = resolveHostToIp(host);
-		urlString = urlString.replace(host, ip);
 		return new Request.Builder()
 				.url(urlString)
 				.head()
