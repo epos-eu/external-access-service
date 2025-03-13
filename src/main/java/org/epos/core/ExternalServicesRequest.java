@@ -73,16 +73,6 @@ public class ExternalServicesRequest {
 		return instance;
 	}
 
-	public String resolveHostToIp(String hostname) {
-		try {
-			InetAddress inetAddress = InetAddress.getByName(hostname);
-			return inetAddress.getHostAddress(); // Returns IP instead of hostname
-		} catch (UnknownHostException e) {
-			LOGGER.error("Failed to resolve hostname: " + hostname);
-			return hostname; // Return original if resolution fails
-		}
-	}
-
 	public Request generateRequest(String urlString){
 		return new Request.Builder()
 				.url(urlString)
@@ -126,6 +116,7 @@ public class ExternalServicesRequest {
 				}
 				return null;
 			} catch (IOException e) {
+				e.printStackTrace();
 				LOGGER.error("Request failed for: " + url + " -> " + e.getLocalizedMessage());
 				attempts++;
 				if (attempts < MAX_RETRIES) {
