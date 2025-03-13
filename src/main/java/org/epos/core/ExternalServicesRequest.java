@@ -106,9 +106,7 @@ public class ExternalServicesRequest {
 			return response.body().string();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			LOGGER.error("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
+			request = generateRequest(url.replace("https://", "https://www."));
 			try (Response response = builder.build().newCall(request).execute()) {
 				return response.body().string();
 			}
@@ -123,9 +121,7 @@ public class ExternalServicesRequest {
 			return response.headers().toMultimap();
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			LOGGER.error("Error on requesting headers for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
+			request = generateRequest(url.replace("https://", "https://www."));
 			try (Response response = builder.build().newCall(request).execute()) {
 				return response.headers().toMultimap();
 			}
@@ -137,9 +133,14 @@ public class ExternalServicesRequest {
 		URL requestUrl = new URL(url);
 		HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
 
+		connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36");
+		connection.setRequestProperty("Accept", "application/json, text/plain, */*");
+		connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+		connection.setRequestProperty("Connection", "keep-alive");
+		connection.setRequestProperty("Host", getHostFromUrl(url)); // Extracts Host dynamically
+
 		try {
-			Map<String, List<String>> headers = connection.getHeaderFields();
-			return headers;
+			return connection.getHeaderFields();
 		} finally {
 			connection.disconnect();
 		}
@@ -155,9 +156,7 @@ public class ExternalServicesRequest {
 
 		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
 			LOGGER.error("Error on requesting content types for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = new Request.Builder()
-					.url(url.replace("https://", "https://www."))
-					.build();
+			request = generateRequest(url.replace("https://", "https://www."));
 			try (Response response = builder.build().newCall(request).execute()) {
 				return response.body().contentType().toString();
 			}
