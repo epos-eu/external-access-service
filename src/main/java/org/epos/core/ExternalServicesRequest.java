@@ -69,20 +69,30 @@ public class ExternalServicesRequest {
 				}
 			});
 			builder.callTimeout(30, TimeUnit.SECONDS);
-			builder.dns(hostname -> {
-				try {
-					// Use Google DNS first
-					return Arrays.asList(
-							InetAddress.getByName("8.8.8.8"),
-							InetAddress.getByName("8.8.4.4")
-					);
-				} catch (UnknownHostException e) {
-					// Fallback to system DNS
-					return Dns.SYSTEM.lookup(hostname);
-				}
-			}).retryOnConnectionFailure(true);
+			builder.dns(ExternalServicesRequest::resolveWithFallback).retryOnConnectionFailure(true);
 		}
 		return instance;
+	}
+
+	private static List<InetAddress> resolveWithFallback(String hostname) throws UnknownHostException {
+		// List of DNS providers in order of preference
+		List<String> dnsProviders = Arrays.asList(
+				"8.8.8.8", "8.8.4.4",         // Google Public DNS
+				"1.1.1.1", "1.0.0.1",         // Cloudflare DNS
+				"208.67.222.222", "208.67.220.220" // OpenDNS
+		);
+
+		// Try each DNS provider in order
+		for (String dns : dnsProviders) {
+			try {
+				return Arrays.asList(InetAddress.getByName(dns));
+			} catch (UnknownHostException ignored) {
+				// Ignore failure and try next DNS provider
+			}
+		}
+
+		// If all external DNS resolvers fail, fallback to system DNS
+		return Dns.SYSTEM.lookup(hostname);
 	}
 
 	public Request generateRequest(String urlString){
