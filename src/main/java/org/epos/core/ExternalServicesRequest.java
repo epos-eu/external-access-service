@@ -131,9 +131,9 @@ public class ExternalServicesRequest {
 				LOGGER.info("URL: " + url);
 				LOGGER.info("Response Code: " + response.code());
 				if (response.body() != null) {
-					LOGGER.info("Response Body: " + response.body().string());
+					LOGGER.info("Response Body: " + response.body().toString());
 				}
-				return response.body().string();
+				return response.body().toString();
 			} catch (IOException e) {
 				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
 				attempts++;
