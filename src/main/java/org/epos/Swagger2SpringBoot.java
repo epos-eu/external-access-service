@@ -45,6 +45,8 @@ public class Swagger2SpringBoot implements CommandLineRunner {
 	}
 
 	public static void main(String[] args) throws Exception {
+		System.setProperty("sun.net.spi.nameservice.provider.1", "dns,dnsjava");
+
 		new SpringApplication(Swagger2SpringBoot.class).run(args);
 	}
 

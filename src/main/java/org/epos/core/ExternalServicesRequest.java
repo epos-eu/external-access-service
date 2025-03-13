@@ -126,7 +126,7 @@ public class ExternalServicesRequest {
 				}
 				return null;
 			} catch (IOException e) {
-				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
+				LOGGER.error("Request failed for: " + url + " -> " + e.getLocalizedMessage());
 				attempts++;
 				if (attempts < MAX_RETRIES) {
 					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
