@@ -154,7 +154,6 @@ public class ExternalServicesRequest {
 				}
 				return null;
 			} catch (IOException e) {
-				e.printStackTrace();
 				LOGGER.error("Request failed for: " + url + " -> " + e.getLocalizedMessage());
 				attempts++;
 				if (attempts < MAX_RETRIES) {
