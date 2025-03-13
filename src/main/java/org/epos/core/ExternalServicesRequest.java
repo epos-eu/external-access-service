@@ -13,11 +13,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HostnameVerifier;
@@ -42,6 +38,9 @@ import okhttp3.Response;
 public class ExternalServicesRequest {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalServicesRequest.class);
+
+	private static final int MAX_RETRIES = 3; // Number of retries
+	private static final long RETRY_DELAY_MS = 2000; // 2 seconds retry delay
 
 	private static ExternalServicesRequest instance = null;
 
@@ -85,9 +84,9 @@ public class ExternalServicesRequest {
 		// Try each DNS provider in order
 		for (String dns : dnsProviders) {
 			try {
-				return Arrays.asList(InetAddress.getByName(dns));
+				return Collections.singletonList(InetAddress.getByName(dns));
 			} catch (UnknownHostException ignored) {
-				// Ignore failure and try next DNS provider
+				LOGGER.error(ignored.getLocalizedMessage());
 			}
 		}
 
@@ -126,30 +125,62 @@ public class ExternalServicesRequest {
 		LOGGER.info("Requesting payload for URL -> "+url);
 		Request request = generateRequest(url);
 
-		try (Response response = builder.build().newCall(request).execute()) {
-			return response.body().string();
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting payload for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = generateRequest(url.replace("https://", "https://www."));
+		int attempts = 0;
+		while (attempts < MAX_RETRIES) {
 			try (Response response = builder.build().newCall(request).execute()) {
-				return response.body().string();
+				LOGGER.info("URL: " + url);
+				LOGGER.info("Response Code: " + response.code());
+				if (response.body() != null) {
+					LOGGER.info("Response Body: " + response.body().string());
+				}
+				return Objects.requireNonNull(response.body()).string();
+			} catch (IOException e) {
+				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
+				attempts++;
+				if (attempts < MAX_RETRIES) {
+					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
+					try {
+						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+					} catch (InterruptedException ignored) {
+						LOGGER.error(ignored.getLocalizedMessage());
+					}
+				} else {
+					LOGGER.info("Max retries reached. Request failed for: " + url);
+				}
 			}
 		}
-	}
+        return null;
+    }
 
 	public Map<String, List<String>> requestHeaders(String url) throws IOException {
 		LOGGER.info("Requesting headers for URL -> "+url);
 		Request request = generateRequest(url);
 
-		try (Response response = builder.build().newCall(request).execute()) {
-			return response.headers().toMultimap();
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting headers for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = generateRequest(url.replace("https://", "https://www."));
+		int attempts = 0;
+		while (attempts < MAX_RETRIES) {
 			try (Response response = builder.build().newCall(request).execute()) {
-				return response.headers().toMultimap();
+				LOGGER.info("URL: " + url);
+				LOGGER.info("Response Code: " + response.code());
+				if (response.body() != null) {
+					LOGGER.info("Response Body: " + response.headers().toMultimap());
+				}
+				return Objects.requireNonNull(response.headers()).toMultimap();
+			} catch (IOException e) {
+				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
+				attempts++;
+				if (attempts < MAX_RETRIES) {
+					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
+					try {
+						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+					} catch (InterruptedException ignored) {
+						LOGGER.error(ignored.getLocalizedMessage());
+					}
+				} else {
+					LOGGER.info("Max retries reached. Request failed for: " + url);
+				}
 			}
 		}
+		return null;
 	}
 
 	public Map<String, List<String>> requestHeadersUsingHttpsURLConnection(String url) throws IOException {
@@ -174,17 +205,31 @@ public class ExternalServicesRequest {
 		LOGGER.info("Requesting content type for URL -> "+url);
 		Request request = generateRequestHead(url);
 
-		try (Response response = builder.build().newCall(request).execute()) {
-			LOGGER.info("Response: "+response);
-			return response.body().contentType().toString();
-
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting content types for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = generateRequest(url.replace("https://", "https://www."));
+		int attempts = 0;
+		while (attempts < MAX_RETRIES) {
 			try (Response response = builder.build().newCall(request).execute()) {
-				return response.body().contentType().toString();
+				LOGGER.info("URL: " + url);
+				LOGGER.info("Response Code: " + response.code());
+				if (response.body() != null) {
+					LOGGER.info("Response Body: " + response.body().contentType().toString());
+				}
+				return Objects.requireNonNull(response.body()).contentType().toString();
+			} catch (IOException e) {
+				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
+				attempts++;
+				if (attempts < MAX_RETRIES) {
+					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
+					try {
+						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+					} catch (InterruptedException ignored) {
+						LOGGER.error(ignored.getLocalizedMessage());
+					}
+				} else {
+					LOGGER.info("Max retries reached. Request failed for: " + url);
+				}
 			}
 		}
+		return null;
 	}
 
 	public Map<String, Object> getRedirect(String url) throws IOException {
