@@ -131,9 +131,10 @@ public class ExternalServicesRequest {
 				LOGGER.info("URL: " + url);
 				LOGGER.info("Response Code: " + response.code());
 				if (response.body() != null) {
-					LOGGER.info("Response Body: " + response.body().toString());
+					LOGGER.info("Response Body: " + response.body());
+					return response.body().string();
 				}
-				return response.body().toString();
+				return null;
 			} catch (IOException e) {
 				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
 				attempts++;
@@ -163,8 +164,9 @@ public class ExternalServicesRequest {
 				LOGGER.info("Response Code: " + response.code());
 				if (response.body() != null) {
 					LOGGER.info("Response Body: " + response.headers().toMultimap());
+					return response.headers().toMultimap();
 				}
-				return Objects.requireNonNull(response.headers()).toMultimap();
+				return null;
 			} catch (IOException e) {
 				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
 				attempts++;
@@ -212,8 +214,9 @@ public class ExternalServicesRequest {
 				LOGGER.info("Response Code: " + response.code());
 				if (response.body() != null) {
 					LOGGER.info("Response Body: " + response.body().contentType().toString());
+					return response.body().contentType().toString();
 				}
-				return response.body().contentType().toString();
+				return null;
 			} catch (IOException e) {
 				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
 				attempts++;
