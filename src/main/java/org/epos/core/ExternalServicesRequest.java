@@ -27,6 +27,8 @@ import javax.net.ssl.X509TrustManager;
 import okhttp3.Dns;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import okhttp3.OkHttpClient;
@@ -120,13 +122,20 @@ public class ExternalServicesRequest {
 	}
 
 	public static String resolveHostToIp(String hostname) {
-		try {
-			InetAddress inetAddress = InetAddress.getByName(hostname);
-			return inetAddress.getHostAddress();
-		} catch (UnknownHostException e) {
-			LOGGER.error("Failed to resolve hostname: " + hostname);
-			return null; // Return null if resolution fails
-		}
+		Request request = new Request.Builder()
+				.url("https://dns.google/resolve?name=" + hostname)
+				.build();
+
+		try (Response response = builder.build().newCall(request).execute()) {
+			if (response.body() != null) {
+				JSONObject json = new JSONObject(response.body().string());
+				JSONArray answers = json.getJSONArray("Answer");
+				return answers.getJSONObject(0).getString("data");
+			}
+		} catch (IOException e) {
+            LOGGER.error(e.getLocalizedMessage());
+        }
+        return null;
 	}
 
 	public String requestPayload(String url) throws IOException {
@@ -174,7 +183,6 @@ public class ExternalServicesRequest {
 				}
 				return null;
 			} catch (IOException e) {
-				e.printStackTrace();
 				LOGGER.error("Request failed for: " + url + " -> " + e.getLocalizedMessage());
 				attempts++;
 				if (attempts < MAX_RETRIES) {
