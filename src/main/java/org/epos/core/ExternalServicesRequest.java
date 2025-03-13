@@ -133,7 +133,7 @@ public class ExternalServicesRequest {
 				if (response.body() != null) {
 					LOGGER.info("Response Body: " + response.body().string());
 				}
-				return Objects.requireNonNull(response.body()).string();
+				return response.body().string();
 			} catch (IOException e) {
 				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
 				attempts++;
@@ -213,7 +213,7 @@ public class ExternalServicesRequest {
 				if (response.body() != null) {
 					LOGGER.info("Response Body: " + response.body().contentType().toString());
 				}
-				return Objects.requireNonNull(response.body()).contentType().toString();
+				return response.body().contentType().toString();
 			} catch (IOException e) {
 				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
 				attempts++;
