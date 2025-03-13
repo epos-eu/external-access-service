@@ -96,8 +96,37 @@ public class ExternalServicesRequest {
 				.build();
 	}
 
+	public Request generateRequestResolvingHost(String urlString) throws MalformedURLException {
+
+		URL url = new URL(urlString);
+
+		String ip = resolveHostToIp(url.getHost());
+		String newUrl = urlString.replace(url.getHost(), ip);
+
+		LOGGER.info("Resolved URL: " + newUrl);
+
+		return new Request.Builder()
+				.url(newUrl)
+				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
+				.addHeader("Accept", "application/json, text/plain, */*")
+				.addHeader("Accept-Language", "en-US,en;q=0.9")
+				.addHeader("Connection", "keep-alive")
+				.addHeader("Host", getHostFromUrl(urlString)) // Extracts Host dynamically
+				.build();
+	}
+
 	private static String getHostFromUrl(String urlString) {
 		return urlString.replaceFirst("https://", "").split("/")[0];
+	}
+
+	public static String resolveHostToIp(String hostname) {
+		try {
+			InetAddress inetAddress = InetAddress.getByName(hostname);
+			return inetAddress.getHostAddress();
+		} catch (UnknownHostException e) {
+			LOGGER.error("Failed to resolve hostname: " + hostname);
+			return null; // Return null if resolution fails
+		}
 	}
 
 	public String requestPayload(String url) throws IOException {
@@ -106,6 +135,35 @@ public class ExternalServicesRequest {
 		LOGGER.info(request.toString());
 
 		int attempts = 0;
+		while (attempts < MAX_RETRIES) {
+			try (Response response = builder.build().newCall(request).execute()) {
+				LOGGER.info("URL: " + url);
+				LOGGER.info("Response Code: " + response.code());
+				if (response.body() != null) {
+					LOGGER.info("Response Body: " + response.body());
+					return response.body().string();
+				}
+				return null;
+			} catch (IOException e) {
+				e.printStackTrace();
+				LOGGER.error("Request failed for: " + url + " -> " + e.getLocalizedMessage());
+				attempts++;
+				if (attempts < MAX_RETRIES) {
+					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
+					try {
+						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+					} catch (InterruptedException ignored) {
+						LOGGER.error(ignored.getLocalizedMessage());
+					}
+				} else {
+					LOGGER.info("Max retries reached. Request failed for: " + url);
+				}
+			}
+		}
+
+		//LAST ATTEMPT RESOLVING IP FROM HOST
+		request = generateRequestResolvingHost(url);
+		attempts = 0;
 		while (attempts < MAX_RETRIES) {
 			try (Response response = builder.build().newCall(request).execute()) {
 				LOGGER.info("URL: " + url);
