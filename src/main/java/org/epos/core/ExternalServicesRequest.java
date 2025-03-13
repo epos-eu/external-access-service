@@ -68,34 +68,33 @@ public class ExternalServicesRequest {
 				}
 			});
 			builder.callTimeout(30, TimeUnit.SECONDS);
-			//builder.dns(ExternalServicesRequest::resolveWithFallback).retryOnConnectionFailure(true);
+			builder.dns(Dns.SYSTEM);
 		}
 		return instance;
 	}
 
-	private static List<InetAddress> resolveWithFallback(String hostname) throws UnknownHostException {
-		// List of DNS providers in order of preference
-		List<String> dnsProviders = Arrays.asList(
-				"8.8.8.8", "8.8.4.4",         // Google Public DNS
-				"1.1.1.1", "1.0.0.1",         // Cloudflare DNS
-				"208.67.222.222", "208.67.220.220" // OpenDNS
-		);
-
-		// Try each DNS provider in order
-		for (String dns : dnsProviders) {
-			try {
-				return Collections.singletonList(InetAddress.getByName(dns));
-			} catch (UnknownHostException ignored) {
-				LOGGER.error(ignored.getLocalizedMessage());
-			}
+	public String resolveHostToIp(String hostname) {
+		try {
+			InetAddress inetAddress = InetAddress.getByName(hostname);
+			return inetAddress.getHostAddress(); // Returns IP instead of hostname
+		} catch (UnknownHostException e) {
+			LOGGER.error("Failed to resolve hostname: " + hostname);
+			return hostname; // Return original if resolution fails
 		}
-
-		// If all external DNS resolvers fail, fallback to system DNS
-		return Dns.SYSTEM.lookup(hostname);
 	}
 
 	public Request generateRequest(String urlString){
-        return new Request.Builder()
+        URL url = null;
+        try {
+            url = new URL(urlString);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+        String host = url.getHost();
+		String ip = resolveHostToIp(host);
+		urlString = urlString.replace(host, ip);
+
+		return new Request.Builder()
 				.url(urlString)
 				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
 				.addHeader("Accept", "application/json, text/plain, */*")
@@ -106,6 +105,15 @@ public class ExternalServicesRequest {
     }
 
 	public Request generateRequestHead(String urlString){
+		URL url = null;
+		try {
+			url = new URL(urlString);
+		} catch (MalformedURLException e) {
+			throw new RuntimeException(e);
+		}
+		String host = url.getHost();
+		String ip = resolveHostToIp(host);
+		urlString = urlString.replace(host, ip);
 		return new Request.Builder()
 				.url(urlString)
 				.head()
@@ -118,7 +126,7 @@ public class ExternalServicesRequest {
 	}
 
 	private static String getHostFromUrl(String urlString) {
-		return urlString.replaceFirst("https?://", "").split("/")[0];
+		return urlString.replaceFirst("https://", "").split("/")[0];
 	}
 
 	public String requestPayload(String url) throws IOException {
