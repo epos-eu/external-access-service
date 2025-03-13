@@ -11,7 +11,8 @@ ADD target/*.jar app.jar
 RUN apk add --no-cache \
     curl \
     bind-tools \
-    dnsmasq
+    dnsmasq \
+    ca-certificates
 
 
 # Ensure dnsmasq starts before the Java application

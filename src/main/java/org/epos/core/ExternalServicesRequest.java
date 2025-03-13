@@ -324,7 +324,7 @@ public class ExternalServicesRequest {
 		X509TrustManager[] trustManagers = LenientX509TrustManager.wrap(defaultTrustManager());
 		SSLContext sslContext = null;
 		try {
-			sslContext = SSLContext.getInstance("TLS");
+			sslContext = SSLContext.getInstance("TLSv1.2");
 			sslContext.init(null, trustManagers, new java.security.SecureRandom());
 			//sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
 
@@ -361,4 +361,5 @@ public class ExternalServicesRequest {
 			throw new IllegalStateException("Can't load default trust manager", e);
 		}
 	}
+
 }
