@@ -13,8 +13,6 @@ RUN apk add --no-cache \
     bind-tools \
     dnsmasq
 
-# Copy a custom dnsmasq.conf file (optional: create it locally)
-COPY dnsmasq.conf /etc/dnsmasq.conf
 
 # Ensure dnsmasq starts before the Java application
 CMD dnsmasq -k & java -Djsse.enableSNIExtension=false -Djava.security.egd=file:/dev/./urandom -jar /app.jar
