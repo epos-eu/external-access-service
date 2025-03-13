@@ -113,6 +113,7 @@ public class ExternalServicesRequest {
 	public String requestPayload(String url) throws IOException {
 		LOGGER.info("Requesting payload for URL -> "+url);
 		Request request = generateRequest(url);
+		LOGGER.info(request.toString());
 
 		int attempts = 0;
 		while (attempts < MAX_RETRIES) {
@@ -145,6 +146,7 @@ public class ExternalServicesRequest {
 	public Map<String, List<String>> requestHeaders(String url) throws IOException {
 		LOGGER.info("Requesting headers for URL -> "+url);
 		Request request = generateRequest(url);
+		LOGGER.info(request.toString());
 
 		int attempts = 0;
 		while (attempts < MAX_RETRIES) {
@@ -184,6 +186,7 @@ public class ExternalServicesRequest {
 		connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
 		connection.setRequestProperty("Connection", "keep-alive");
 		connection.setRequestProperty("Host", getHostFromUrl(url)); // Extracts Host dynamically
+		LOGGER.info(connection.toString());
 
 		try {
 			return connection.getHeaderFields();
@@ -195,6 +198,7 @@ public class ExternalServicesRequest {
 	public String getContentType(String url) throws IOException {
 		LOGGER.info("Requesting content type for URL -> "+url);
 		Request request = generateRequestHead(url);
+		LOGGER.info(request.toString());
 
 		int attempts = 0;
 		while (attempts < MAX_RETRIES) {
