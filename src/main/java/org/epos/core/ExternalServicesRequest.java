@@ -1,10 +1,7 @@
 package org.epos.core;
 
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -70,9 +67,35 @@ public class ExternalServicesRequest {
 				}
 			});
 			builder.callTimeout(30, TimeUnit.SECONDS);
-			builder.dns(Dns.SYSTEM);
+
+			String clusterDNS = getClusterDNS();
+			if (clusterDNS == null) {
+				System.err.println("Failed to detect Kubernetes Cluster DNS");
+			}
+
+			builder.dns(hostname -> {
+				try {
+					return Collections.singletonList(InetAddress.getByName(clusterDNS));
+				} catch (UnknownHostException e) {
+					return Dns.SYSTEM.lookup(hostname);
+				}
+			});
 		}
 		return instance;
+	}
+
+	public static String getClusterDNS() {
+		try (BufferedReader reader = new BufferedReader(new FileReader("/etc/resolv.conf"))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				if (line.startsWith("nameserver")) {
+					return line.split(" ")[1].trim();
+				}
+			}
+		} catch (IOException e) {
+			System.err.println("Failed to read /etc/resolv.conf: " + e.getMessage());
+		}
+		return null;
 	}
 
 	public Request generateRequest(String urlString){
