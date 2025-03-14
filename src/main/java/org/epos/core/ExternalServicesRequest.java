@@ -69,8 +69,8 @@ public class ExternalServicesRequest {
 				try {
 					LOGGER.info("CLUSTER DNS: "+clusterDNS);
 					LOGGER.info("CLUSTER DNS: "+clusterDNS.replace("\"", ""));
-					LOGGER.info("COLLECTION SINGLETONLIST: "+Collections.singletonList(InetAddress.getByName(clusterDNS)).toString());
-					return Collections.singletonList(InetAddress.getByName(clusterDNS));
+					LOGGER.info("COLLECTION SINGLETONLIST: "+Collections.singletonList(InetAddress.getByName(clusterDNS.replace("\"", ""))).toString());
+					return Collections.singletonList(InetAddress.getByName(clusterDNS.replace("\"", "")));
 				} catch (UnknownHostException e) {
 					LOGGER.error("Unknown host: " + hostname+" error: "+e.getMessage());
 					LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
