@@ -12,7 +12,9 @@ import javax.net.ssl.*;
 
 import okhttp3.*;
 import okhttp3.EventListener;
+import org.epos.core.dns.CustomDns;
 import org.epos.core.dns.DnsTimingEventListener;
+import org.epos.core.dns.ReverseApiDns;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.json.JSONArray;
@@ -55,17 +57,19 @@ public class ExternalServicesRequest {
 			});
 			builder.callTimeout(30, TimeUnit.SECONDS);
 
-			String clusterDNS = getClusterDNS();
-			if (clusterDNS == null) {
-				LOGGER.error("Failed to detect Kubernetes Cluster DNS");
-			}
+			//String clusterDNS = getClusterDNS();
+			//if (clusterDNS == null) {
+			//	LOGGER.error("Failed to detect Kubernetes Cluster DNS");
+			//}
 			builder.eventListenerFactory(call -> new DnsTimingEventListener());
-			builder.dns(hostname -> {
+			/*builder.dns(hostname -> {
 				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
 				LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
 				return Dns.SYSTEM.lookup(hostname);
 
-			});
+			});*/
+			builder.dns(new ReverseApiDns());
+			builder.retryOnConnectionFailure(true);
 		}
 		return instance;
 	}
