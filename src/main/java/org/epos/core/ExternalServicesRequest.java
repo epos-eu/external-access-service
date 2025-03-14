@@ -65,7 +65,6 @@ public class ExternalServicesRequest {
 			}
 
 			builder.dns(hostname -> {
-				hostname = "brgm.fr";
 				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
 				LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
 				return Dns.SYSTEM.lookup(hostname);
