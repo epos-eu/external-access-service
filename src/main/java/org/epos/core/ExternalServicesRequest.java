@@ -11,10 +11,8 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ssl.*;
 
 import okhttp3.*;
-import okhttp3.EventListener;
-import org.epos.core.dns.CustomDns;
 import org.epos.core.dns.DnsTimingEventListener;
-import org.epos.core.dns.ReverseApiDns;
+import org.epos.core.dns.RobustDns;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.json.JSONArray;
@@ -68,7 +66,7 @@ public class ExternalServicesRequest {
 				return Dns.SYSTEM.lookup(hostname);
 
 			});*/
-			builder.dns(new ReverseApiDns());
+			builder.dns(new RobustDns());
 			builder.retryOnConnectionFailure(true);
 		}
 		return instance;
