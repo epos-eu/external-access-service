@@ -5,8 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3ee68450-c4ea-4710-85ba-83fed1f1a221" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/epos/core/dns/DnsTimingEventListener.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/epos/core/dns/OkHttpDns.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/api/ExecuteOGCApiController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/epos/api/ExecuteOGCApiController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/core/ExternalServicesRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/epos/core/ExternalServicesRequest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -134,7 +136,7 @@
       <workItem from="1741361564423" duration="820000" />
       <workItem from="1741553886135" duration="4905000" />
       <workItem from="1741597621487" duration="26000" />
-      <workItem from="1741856785740" duration="22513000" />
+      <workItem from="1741856785740" duration="23379000" />
     </task>
     <servers />
   </component>

@@ -2,27 +2,23 @@ package org.epos.core;
 
 
 import java.io.*;
-import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.security.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.*;
 
-import okhttp3.Dns;
+import okhttp3.*;
+import okhttp3.EventListener;
+import org.epos.core.dns.DnsTimingEventListener;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-
 
 
 public class ExternalServicesRequest {
@@ -63,6 +59,7 @@ public class ExternalServicesRequest {
 			if (clusterDNS == null) {
 				LOGGER.error("Failed to detect Kubernetes Cluster DNS");
 			}
+			builder.eventListenerFactory(call -> new DnsTimingEventListener());
 
 			builder.dns(hostname -> {
 				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
