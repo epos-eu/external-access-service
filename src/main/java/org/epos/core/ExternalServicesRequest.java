@@ -6,20 +6,11 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.*;
 
 import okhttp3.Dns;
 import org.epos.core.ssl.CustomSSLSocketFactory;
@@ -89,11 +80,12 @@ public class ExternalServicesRequest {
 			String line;
 			while ((line = reader.readLine()) != null) {
 				if (line.startsWith("nameserver")) {
+					LOGGER.info("NAMESERVER FROM /etc/resolv.conf: " + line.split(" ")[1].trim());
 					return line.split(" ")[1].trim();
 				}
 			}
 		} catch (IOException e) {
-			System.err.println("Failed to read /etc/resolv.conf: " + e.getMessage());
+			LOGGER.error("FAILED TO READ /etc/resolv.conf: " + e.getMessage());
 		}
 		return null;
 	}
@@ -126,12 +118,15 @@ public class ExternalServicesRequest {
 		URL url = new URL(urlString);
 
 		String ip = resolveHostToIp(url.getHost());
-		String newUrl = urlString.replace(url.getHost(), ip);
+        String newUrl = null;
+        if (ip != null) {
+            newUrl = urlString.replace(url.getHost(), ip);
+        }
 
-		LOGGER.info("Resolved URL: " + newUrl);
+        LOGGER.info("Resolved URL: " + newUrl);
 
 		return new Request.Builder()
-				.url(newUrl)
+				.url(newUrl != null ? newUrl : urlString)
 				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
 				.addHeader("Accept", "application/json, text/plain, */*")
 				.addHeader("Accept-Language", "en-US,en;q=0.9")
@@ -151,7 +146,9 @@ public class ExternalServicesRequest {
 
 		try (Response response = builder.build().newCall(request).execute()) {
 			if (response.body() != null) {
-				JSONObject json = new JSONObject(response.body().string());
+				String body = response.body().string();
+				System.out.println(body);
+				JSONObject json = new JSONObject(body);
 				JSONArray answers = json.getJSONArray("Answer");
 				return answers.getJSONObject(0).getString("data");
 			}
@@ -322,7 +319,7 @@ public class ExternalServicesRequest {
 			responseMap.put("httpStatusCode", httpStatusCode);
 			responseMap.put("redirect-url", url);
 			return responseMap;
-		} catch(javax.net.ssl.SSLPeerUnverifiedException e) {
+		} catch(SSLPeerUnverifiedException e) {
 			LOGGER.error("Error on requesting redirect for URL: "+url+" cause: "+e.getLocalizedMessage());
 			request = generateRequest(url.replace("https://", "https://www."));
 			try (Response response = builder.build().newCall(request).execute()) {
@@ -348,7 +345,7 @@ public class ExternalServicesRequest {
 		SSLContext sslContext = null;
 		try {
 			sslContext = SSLContext.getInstance("TLSv1.2");
-			sslContext.init(null, trustManagers, new java.security.SecureRandom());
+			sslContext.init(null, trustManagers, new SecureRandom());
 			//sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
 
 		} catch (NoSuchAlgorithmException | KeyManagementException e) {
