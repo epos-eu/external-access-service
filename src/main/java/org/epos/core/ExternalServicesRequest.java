@@ -63,20 +63,8 @@ public class ExternalServicesRequest {
 			if (clusterDNS == null) {
 				LOGGER.error("Failed to detect Kubernetes Cluster DNS");
 			}
-
-			builder.dns(hostname -> {
-				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
-				try {
-					LOGGER.info("CLUSTER DNS: "+clusterDNS);
-					LOGGER.info("COLLECTION SINGLETONLIST: "+Collections.singletonList(InetAddress.getByName(clusterDNS)).toString());
-					LOGGER.info("INET: "+InetAddress.getByName(clusterDNS));
-					return Collections.singletonList(InetAddress.getByName(clusterDNS));
-				} catch (UnknownHostException e) {
-					LOGGER.error("Unknown host: " + hostname+" error: "+e.getMessage());
-					LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
-					return Dns.SYSTEM.lookup(hostname);
-				}
-			});
+			LOGGER.info("Cluster DNS: " + Dns.SYSTEM.toString());
+			builder.dns(Dns.SYSTEM);
 		}
 		return instance;
 	}
