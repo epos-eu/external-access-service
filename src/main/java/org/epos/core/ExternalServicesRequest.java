@@ -794,7 +794,7 @@ public class ExternalServicesRequest {
     /**
      * Advanced DNS resolver with multiple fallback methods
      */
-    private static class AdvancedDnsResolver implements Dns {
+    private class AdvancedDnsResolver implements Dns {
         private final Dns systemDns = Dns.SYSTEM;
         private final Map<String, String> hostToIpMap;
         private final Map<String, IpMappingEntry> ipCache;
@@ -863,7 +863,7 @@ public class ExternalServicesRequest {
             LOGGER.info("Standard DNS resolution failed for " + hostname + ", falling back to external methods");
 
             // Mark this hostname as problematic for future reference
-            ((ExternalServicesRequest) hostToIpMap.getClass().getEnclosingClass()).markHostAsProblematic(hostname);
+            markHostAsProblematic(hostname);
 
             // All attempts failed, throw exception
             throw new UnknownHostException("Unable to resolve host " + hostname);
