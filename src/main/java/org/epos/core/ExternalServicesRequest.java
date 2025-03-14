@@ -31,6 +31,9 @@ public class ExternalServicesRequest {
     // Cache resolved IPs to avoid repeated lookups
     private final Map<String, IpMappingEntry> ipCache = new ConcurrentHashMap<>();
 
+    // Set to remember hosts that have had DNS resolution problems
+    private final Set<String> problematicHostsCache = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
     // Configurable cache TTL in milliseconds
     private final long ipCacheTtlMs;
 
@@ -212,11 +215,46 @@ public class ExternalServicesRequest {
             // Extract hostname for potential special handling
             String hostname = new java.net.URL(url).getHost();
 
-            // First try with normal flow (will use our custom DNS resolver)
-            result = getResponseBody(url);
-            return result;
+            // Check if this is a problematic host that might need direct IP connection
+            // Instead of waiting for failure, try to pre-resolve the IP first
+            if (isLikelyProblematicHost(hostname)) {
+                // Try to resolve the hostname using external methods first
+                String resolvedIp = resolveUsingExternalDns(hostname);
+                if (resolvedIp != null && enableDirectIpConnections) {
+                    LOGGER.info("Pre-emptively using direct IP connection for likely problematic host: " + hostname);
+
+                    try {
+                        URL originalUrl = new URL(url);
+                        boolean isHttps = "https".equalsIgnoreCase(originalUrl.getProtocol());
+                        int port = originalUrl.getPort();
+                        String portPart = (port != -1) ? ":" + port : "";
+                        String path = originalUrl.getPath() + (originalUrl.getQuery() != null ? "?" + originalUrl.getQuery() : "");
+
+                        // Use our direct IP method
+                        String response = getByIp(resolvedIp + portPart, hostname, path, isHttps);
+
+                        // Store the IP mapping for future use
+                        hostToIpMap.put(hostname, resolvedIp);
+                        ipCache.put(hostname, new IpMappingEntry(resolvedIp, System.currentTimeMillis() + ipCacheTtlMs));
+                        LOGGER.info("Successfully connected to " + hostname + " using IP " + resolvedIp + " (pre-emptive)");
+
+                        return response;
+                    } catch (Exception directIpEx) {
+                        errors.add("Pre-emptive direct IP connection failed: " + directIpEx.getMessage());
+                        // Fall through to standard flow
+                    }
+                }
+            }
+
+            // Standard attempt with normal flow (will use our custom DNS resolver)
+            try {
+                result = getResponseBody(url);
+                return result;
+            } catch (IOException standardEx) {
+                errors.add("Standard attempt failed: " + standardEx.getMessage());
+            }
         } catch (IOException e) {
-            errors.add("Primary attempt failed: " + e.getMessage());
+            errors.add("URL parsing failed: " + e.getMessage());
 
             try {
                 // Extract hostname for fallback methods
@@ -695,6 +733,44 @@ public class ExternalServicesRequest {
     }
 
     /**
+     * Determine if a hostname is likely to be problematic for DNS resolution
+     * This method uses heuristics to identify hosts that might need direct IP connection
+     */
+    private boolean isLikelyProblematicHost(String hostname) {
+        // Check if we have previously failed to resolve this host
+        if (problematicHostsCache.contains(hostname)) {
+            return true;
+        }
+
+        // Check if this host has a static IP mapping
+        if (hostToIpMap.containsKey(hostname)) {
+            return true;
+        }
+
+        // Check for common patterns in problematic hosts
+        // 1. Unusual TLDs that might cause DNS issues
+        if (hostname.endsWith(".local") || hostname.endsWith(".internal") ||
+                hostname.endsWith(".test") || hostname.endsWith(".example")) {
+            return true;
+        }
+
+        // 2. Hostnames that contain IP-like patterns
+        if (hostname.matches(".*\\d{1,3}-\\d{1,3}-\\d{1,3}-\\d{1,3}.*")) {
+            return true;
+        }
+
+        // Otherwise, not a known problematic host
+        return false;
+    }
+
+    /**
+     * Record a hostname as problematic for future reference
+     */
+    private void markHostAsProblematic(String hostname) {
+        problematicHostsCache.add(hostname);
+    }
+
+    /**
      * Entry in the IP mapping cache with expiration
      */
     private static class IpMappingEntry {
@@ -785,6 +861,9 @@ public class ExternalServicesRequest {
 
             // Log the resolution failure for visibility
             LOGGER.info("Standard DNS resolution failed for " + hostname + ", falling back to external methods");
+
+            // Mark this hostname as problematic for future reference
+            ((ExternalServicesRequest) hostToIpMap.getClass().getEnclosingClass()).markHostAsProblematic(hostname);
 
             // All attempts failed, throw exception
             throw new UnknownHostException("Unable to resolve host " + hostname);
