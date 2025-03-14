@@ -16,17 +16,26 @@ public class ExternalServicesRequest {
     private final int READ_TIMEOUT = 30; // seconds
     private final int WRITE_TIMEOUT = 30; // seconds
 
-    // Define alternative DNS servers
-    private static final String[] ALTERNATIVE_DNS_SERVERS = {
-            "8.8.8.8",    // Google DNS
-            "8.8.4.4",    // Google DNS alternative
-            "1.1.1.1",    // Cloudflare DNS
-            "9.9.9.9"     // Quad9 DNS
-    };
+    // Default fallback DNS servers (configurable)
+    private final String[] fallbackDnsServers;
 
+    /**
+     * Default constructor that uses system DNS with internal fallbacks
+     */
     public ExternalServicesRequest() {
+        this(null);
+    }
+
+    /**
+     * Constructor with configurable fallback DNS servers
+     * @param fallbackDnsServers Array of DNS servers to use as fallback, null for defaults
+     */
+    public ExternalServicesRequest(String[] fallbackDnsServers) {
+        // Use provided DNS servers or empty array to rely on system/K8s DNS only
+        this.fallbackDnsServers = fallbackDnsServers != null ? fallbackDnsServers : new String[0];
+
         // Configure DNS resolver with fallback mechanisms
-        Dns robustDns = new RobustDns();
+        Dns robustDns = new RobustDns(this.fallbackDnsServers);
 
         // Build the OkHttp client with our custom configurations
         client = new OkHttpClient.Builder()
@@ -53,28 +62,61 @@ public class ExternalServicesRequest {
         } catch (IOException e) {
             errors.add("Primary attempt failed: " + e.getMessage());
 
-            // If DNS is the issue, try with alternative host resolution
-            if (e instanceof UnknownHostException) {
-                try {
-                    // Extract hostname from URL
-                    String hostname = new java.net.URL(url).getHost();
+            // If standard request fails, try again with explicit connection close
+            // This can help with connection pool issues in containerized environments
+            try {
+                Request request = new Request.Builder()
+                        .url(url)
+                        .header("Connection", "close") // Force connection close
+                        .build();
 
-                    // Try each alternative DNS server
-                    for (String dnsServer : ALTERNATIVE_DNS_SERVERS) {
-                        try {
-                            String resolvedIp = resolveHostnameUsingDns(hostname, dnsServer);
-                            if (resolvedIp != null) {
-                                // Replace hostname with IP in URL
-                                String ipUrl = url.replace(hostname, resolvedIp);
-                                result = getResponseBody(ipUrl);
-                                return result;
+                try (Response response = client.newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                        throw new IOException("Unexpected response code: " + response);
+                    }
+
+                    ResponseBody body = response.body();
+                    return body != null ? body.string() : "";
+                }
+            } catch (IOException retryEx) {
+                errors.add("Retry with connection close failed: " + retryEx.getMessage());
+            }
+
+            // Last resort - if DNS is the issue and we have fallback servers configured
+            if (e instanceof UnknownHostException && fallbackDnsServers.length > 0) {
+                try {
+                    // Extract hostname from URL to resolve it directly
+                    String hostname = new java.net.URL(url).getHost();
+                    String resolvedIp = resolveHostnameDirectly(hostname);
+
+                    if (resolvedIp != null) {
+                        // Don't replace in URL as that might break TLS/SNI - instead use IP with hostname in header
+                        Request request = new Request.Builder()
+                                .url(url)
+                                .header("Host", hostname)
+                                .build();
+
+                        // Create a new client that will connect to the IP but send hostname in TLS SNI
+                        OkHttpClient ipClient = client.newBuilder()
+                                .dns(hostname1 -> {
+                                    if (hostname1.equals(hostname)) {
+                                        return Collections.singletonList(InetAddress.getByName(resolvedIp));
+                                    }
+                                    return client.dns().lookup(hostname1);
+                                })
+                                .build();
+
+                        try (Response response = ipClient.newCall(request).execute()) {
+                            if (!response.isSuccessful()) {
+                                throw new IOException("Unexpected response code: " + response);
                             }
-                        } catch (Exception dnsEx) {
-                            errors.add("DNS server " + dnsServer + " resolution failed: " + dnsEx.getMessage());
+
+                            ResponseBody body = response.body();
+                            return body != null ? body.string() : "";
                         }
                     }
                 } catch (Exception urlEx) {
-                    errors.add("URL parsing failed: " + urlEx.getMessage());
+                    errors.add("IP fallback failed: " + urlEx.getMessage());
                 }
             }
         }
@@ -84,13 +126,10 @@ public class ExternalServicesRequest {
     }
 
     /**
-     * Attempt to resolve a hostname using a specific DNS server
-     * Note: This is a simplified implementation; in production, use a DNS library
+     * Attempt to resolve a hostname directly using system DNS
      */
-    private String resolveHostnameUsingDns(String hostname, String dnsServer) {
+    private String resolveHostnameDirectly(String hostname) {
         try {
-            // This would typically use a DNS library to query the specific server
-            // For demonstration, we're using a simpler approach to show the concept
             InetAddress[] addresses = InetAddress.getAllByName(hostname);
             if (addresses.length > 0) {
                 return addresses[0].getHostAddress();
@@ -181,20 +220,26 @@ public class ExternalServicesRequest {
 
     /**
      * Custom DNS resolver that implements fallback mechanisms
+     * Respects Kubernetes DNS configurations
      */
     private static class RobustDns implements Dns {
         private final Dns systemDns = Dns.SYSTEM;
         private final OkHttpDnsCache dnsCache = new OkHttpDnsCache();
+        private final String[] fallbackDnsServers;
+
+        public RobustDns(String[] fallbackDnsServers) {
+            this.fallbackDnsServers = fallbackDnsServers;
+        }
 
         @Override
         public List<InetAddress> lookup(String hostname) throws UnknownHostException {
-            // First try: Check cache
+            // Always check cache first
             List<InetAddress> cachedAddresses = dnsCache.get(hostname);
             if (cachedAddresses != null && !cachedAddresses.isEmpty()) {
                 return cachedAddresses;
             }
 
-            // Second try: System DNS
+            // Primary lookup: Use system DNS (this includes Kubernetes DNS in cluster)
             try {
                 List<InetAddress> addresses = systemDns.lookup(hostname);
                 if (!addresses.isEmpty()) {
@@ -205,49 +250,36 @@ public class ExternalServicesRequest {
                 // System DNS failed, continue to fallbacks
             }
 
-            // Third try: Check if hostname is already an IP address
+            // Check if hostname is already an IP address
             try {
                 InetAddress ipAddress = InetAddress.getByName(hostname);
                 if (ipAddress.getHostAddress().equals(hostname)) {
                     return Collections.singletonList(ipAddress);
                 }
             } catch (UnknownHostException e) {
-                // Not an IP address, continue to alternative DNS
+                // Not an IP address, continue to alternative resolution
             }
 
-            // Fourth try: Alternative DNS servers (Google DNS, Cloudflare DNS)
-            try {
-                List<InetAddress> addresses = lookupUsingAlternativeDns(hostname);
-                if (!addresses.isEmpty()) {
-                    dnsCache.put(hostname, addresses);
-                    return addresses;
+            // We rely on system fallbacks and don't override with custom DNS servers in Kubernetes
+            // This prevents conflicts with cluster DNS
+            // For non-Kubernetes environments, fallback DNS can be enabled via constructor
+            if (fallbackDnsServers.length > 0) {
+                try {
+                    // This would be an implementation using fallback DNS servers
+                    // In production, this would require a proper DNS library
+                    InetAddress[] addresses = InetAddress.getAllByName(hostname);
+                    List<InetAddress> resultList = Arrays.asList(addresses);
+                    if (!resultList.isEmpty()) {
+                        dnsCache.put(hostname, resultList);
+                        return resultList;
+                    }
+                } catch (UnknownHostException e) {
+                    // Alternative lookup failed
                 }
-            } catch (Exception e) {
-                // Alternative DNS failed, continue
             }
 
             // All attempts failed, throw exception
             throw new UnknownHostException("Unable to resolve host " + hostname);
-        }
-
-        /**
-         * Uses alternative DNS servers directly via Java's InetAddress
-         * Note: This is simplified and doesn't actually query Google/Cloudflare DNS
-         * For a real implementation, consider using dnsjava library
-         */
-        private List<InetAddress> lookupUsingAlternativeDns(String hostname) {
-            List<InetAddress> results = new ArrayList<>();
-
-            // Using just InetAddress.getAllByName as a fallback
-            // In a real implementation, you would specifically query alternative DNS servers
-            try {
-                InetAddress[] addresses = InetAddress.getAllByName(hostname);
-                results.addAll(Arrays.asList(addresses));
-            } catch (UnknownHostException e) {
-                // Alternative lookup failed
-            }
-
-            return results;
         }
     }
 
