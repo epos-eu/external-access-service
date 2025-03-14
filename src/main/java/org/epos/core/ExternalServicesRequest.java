@@ -354,7 +354,22 @@ public class ExternalServicesRequest {
      * This is a fallback when all other methods fail
      */
     private String resolveUsingExternalDns(String hostname) {
-        // First try system DNS - most reliable
+        // First check if we already know the IP from our mapping
+        String staticIp = hostToIpMap.get(hostname);
+        if (staticIp != null && isValidIpAddress(staticIp)) {
+            LOGGER.info("Using known IP mapping for " + hostname + ": " + staticIp);
+            return staticIp;
+        }
+
+        // Try BGS-specific resolution for BGS domains
+        if (hostname.endsWith("bgs.ac.uk")) {
+            String bgsIp = resolveBgsSpecificDomain(hostname);
+            if (bgsIp != null) {
+                return bgsIp;
+            }
+        }
+
+        // Try system DNS - most reliable
         try {
             InetAddress[] addresses = InetAddress.getAllByName(hostname);
             if (addresses.length > 0) {
@@ -459,7 +474,98 @@ public class ExternalServicesRequest {
             }
         }
 
+        // Try to deduce IP from related domains
+        String relatedDomainIp = resolveFromRelatedDomain(hostname);
+        if (relatedDomainIp != null) {
+            return relatedDomainIp;
+        }
+
+        // Try to deduce IP from related domains
+        try {
+            relatedDomainIp = resolveFromRelatedDomain(hostname);
+            if (relatedDomainIp != null) {
+                LOGGER.info("Resolved " + hostname + " to " + relatedDomainIp + " using related domain");
+                return relatedDomainIp;
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Related domain resolution failed", e);
+        }
+
         // No resolution found
+        return null;
+    }
+
+    /**
+     * Specific handler for BGS (British Geological Survey) domains that have known issues
+     */
+    private String resolveBgsSpecificDomain(String hostname) {
+        // Known BGS domains and their IPs
+        Map<String, String> bgsDomainsMap = new HashMap<>();
+        bgsDomainsMap.put("gifswebapi.bgs.ac.uk", "194.66.252.155");
+        bgsDomainsMap.put("wdcapi.bgs.ac.uk", "194.66.252.156");
+        bgsDomainsMap.put("wdc.bgs.ac.uk", "194.66.252.157");
+
+        // Check for exact matches
+        String ip = bgsDomainsMap.get(hostname);
+        if (ip != null) {
+            LOGGER.info("Using known BGS domain mapping for " + hostname + ": " + ip);
+            return ip;
+        }
+
+        // For unknown BGS subdomains, try the main BGS IP range
+        if (hostname.endsWith("bgs.ac.uk")) {
+            // Try a common BGS IP
+            String commonBgsIp = "194.66.252.155";
+            LOGGER.info("Using common BGS IP range for " + hostname + ": " + commonBgsIp);
+            return commonBgsIp;
+        }
+
+        return null;
+    }
+
+    /**
+     * Try to deduce IP based on related domains that might be on the same server
+     */
+    private String resolveFromRelatedDomain(String hostname) {
+        // Extract domain parts
+        String[] parts = hostname.split("\\.");
+        if (parts.length < 3) return null;
+
+        // Generate possible related domains
+        List<String> relatedDomains = new ArrayList<>();
+
+        // Try with different subdomains
+        if (hostname.startsWith("wdcapi.") || hostname.startsWith("api.")) {
+            String baseDomain = hostname.substring(hostname.indexOf('.') + 1);
+            relatedDomains.add("www." + baseDomain);
+            relatedDomains.add("data." + baseDomain);
+            relatedDomains.add("portal." + baseDomain);
+        } else if (hostname.startsWith("www.")) {
+            String baseDomain = hostname.substring(4);
+            relatedDomains.add("api." + baseDomain);
+            relatedDomains.add("data." + baseDomain);
+        }
+
+        // Try generic variations of the domain
+        String domainWithoutSubdomain = parts.length > 2 ?
+                String.join(".", Arrays.copyOfRange(parts, 1, parts.length)) : hostname;
+        relatedDomains.add(domainWithoutSubdomain);
+
+        // Try to resolve each related domain
+        for (String relatedDomain : relatedDomains) {
+            try {
+                InetAddress[] addresses = InetAddress.getAllByName(relatedDomain);
+                if (addresses.length > 0) {
+                    String ip = addresses[0].getHostAddress();
+                    LOGGER.info("Deduced IP for " + hostname + " from related domain " +
+                            relatedDomain + ": " + ip);
+                    return ip;
+                }
+            } catch (UnknownHostException e) {
+                // Continue to next related domain
+            }
+        }
+
         return null;
     }
 
@@ -744,6 +850,11 @@ public class ExternalServicesRequest {
 
         // Check if this host has a static IP mapping
         if (hostToIpMap.containsKey(hostname)) {
+            return true;
+        }
+
+        // Check for British Geological Survey domains which are known to be problematic
+        if (hostname.contains("bgs.ac.uk")) {
             return true;
         }
 
