@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.epos.core.ExternalServicesRequest;
 import org.json.JSONException;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -41,7 +42,7 @@ import org.xmlunit.builder.DiffBuilder;
 import org.xmlunit.diff.Diff;
 
 /**
- * Developer test for use with {@link RequestLegacyTest}: The RequestLegacyTest is used to generate files from the outputs
+ * Developer test for use with {@link ExternalServicesRequest}: The RequestLegacyTest is used to generate files from the outputs
  * of the legacy <code>org.epos_ip.tcsconnector.core.Request</code> code.
  * 
  * As the content of the generated response files is dependent upon the external services this test should be used as a developer
@@ -51,6 +52,7 @@ import org.xmlunit.diff.Diff;
 public class RequestInvokerTest {
 	
 	private static final Logger LOG = LoggerFactory.getLogger(RequestInvokerTest.class);
+	private static ExternalServicesRequest robustClient = new ExternalServicesRequest();
 	
     @BeforeClass
     public static void setup() {
@@ -170,7 +172,7 @@ public class RequestInvokerTest {
 			Map<String, String> expected = testData.get(k);
 			Map<String, Object> actual = null;
 			try {
-				actual = ExternalServicesRequestOLD.getInstance().getRedirect(k);
+				actual = robustClient.getRedirect(k);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -209,7 +211,7 @@ public class RequestInvokerTest {
 			Map<String, String> expected = testData.get(k);
 			Map<String, Object> actual = null;
 			try {
-				actual = ExternalServicesRequestOLD.getInstance().getRedirect(k);
+				actual = robustClient.getRedirect(k);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -240,7 +242,7 @@ public class RequestInvokerTest {
 			try {
 				Path respPayloadFile = Paths.get("src", "test", "resources", "response-payloads", fileName);				
 				String expected  = new String(Files.readAllBytes(respPayloadFile));				
-				String actual = ExternalServicesRequestOLD.getInstance().requestPayload(uri);
+				String actual = robustClient.getResponseBodyWithFallback(uri);
 				
 				if (LOG.isDebugEnabled()) {
 					LOG.debug(String.format("TEXT_HTML:%n%s", actual));
@@ -273,7 +275,7 @@ public class RequestInvokerTest {
 			try {
 				Path respPayloadFile = Paths.get("src", "test", "resources", "response-payloads", fileName);				
 				String expected  = new String(Files.readString(respPayloadFile));				
-				String actual = ExternalServicesRequestOLD.getInstance().requestPayload(uri);
+				String actual = robustClient.getResponseBodyWithFallback(uri);
 				
 				LOG.info("Testing XML response from... " + uri);
 				
@@ -314,7 +316,7 @@ public class RequestInvokerTest {
 			try {
 				Path respPayloadFile = Paths.get("src", "test", "resources", "response-payloads", fileName);				
 				String expected  = new String(Files.readString(respPayloadFile));				
-				String actual = ExternalServicesRequestOLD.getInstance().requestPayload(uri);
+				String actual = robustClient.getResponseBodyWithFallback(uri);
 				
 				if (LOG.isDebugEnabled()) {
 					LOG.debug(String.format("APPLICATION_JSON:%n%s", actual));
