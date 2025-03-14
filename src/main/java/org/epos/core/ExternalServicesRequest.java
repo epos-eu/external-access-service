@@ -514,6 +514,8 @@ public class ExternalServicesRequest {
         bgsDomainsMap.put("gifswebapi.bgs.ac.uk", "194.66.252.155");
         bgsDomainsMap.put("wdcapi.bgs.ac.uk", "194.66.252.156");
         bgsDomainsMap.put("wdc.bgs.ac.uk", "194.66.252.157");
+        bgsDomainsMap.put("geo.irdr.ucl.ac.uk", "193.60.251.153");
+
 
         // Check for exact matches
         String ip = bgsDomainsMap.get(hostname);
@@ -739,81 +741,7 @@ public class ExternalServicesRequest {
     }
 
     /**
-     * Execute a general request with the robust client
-     */
-    public Response executeRequest(Request request) throws IOException {
-        return client.newCall(request).execute();
-    }
-
-    /**
-     * Executes a request directly using an IP address instead of hostname
-     * This is useful for bypassing DNS resolution completely
-     *
-     * @param ipAddress The IP address to connect to
-     * @param hostname The original hostname (for SNI/Host header)
-     * @param path The path of the request (e.g., "/api/data")
-     * @param method The HTTP method (GET, POST, etc.)
-     * @param isHttps Whether to use HTTPS (true) or HTTP (false)
-     * @param headers Additional HTTP headers to include
-     * @param requestBody The request body for POST/PUT requests (null for GET/HEAD)
-     * @return The response body as a string
-     * @throws IOException If an I/O error occurs
-     */
-    public String executeRequestByIp(String ipAddress, String hostname, String path,
-                                     String method, boolean isHttps,
-                                     Map<String, String> headers,
-                                     RequestBody requestBody) throws IOException {
-        // Validate IP address
-        if (!isValidIpAddress(ipAddress)) {
-            throw new IllegalArgumentException("Invalid IP address: " + ipAddress);
-        }
-
-        // Construct URL with IP instead of hostname
-        String protocol = isHttps ? "https" : "http";
-        String url = protocol + "://" + ipAddress + path;
-
-        // Build request with the Host header
-        Request.Builder requestBuilder = new Request.Builder()
-                .url(url)
-                .method(method, requestBody);
-
-        // Add Host header for SNI/virtual hosting
-        requestBuilder.header("Host", hostname);
-
-        // Add other headers if provided
-        if (headers != null) {
-            for (Map.Entry<String, String> entry : headers.entrySet()) {
-                requestBuilder.header(entry.getKey(), entry.getValue());
-            }
-        }
-
-        // Create custom client that bypasses DNS resolution for this IP
-        OkHttpClient ipClient = client.newBuilder()
-                .dns(new Dns() {
-                    @Override
-                    public List<InetAddress> lookup(String host) throws UnknownHostException {
-                        // For the target IP, return it directly
-                        if (host.equals(ipAddress)) {
-                            return Collections.singletonList(InetAddress.getByName(ipAddress));
-                        }
-                        // For other hostnames, use the default resolver
-                        return Dns.SYSTEM.lookup(host);
-                    }
-                })
-                .build();
-
-        try (Response response = ipClient.newCall(requestBuilder.build()).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected response code: " + response);
-            }
-
-            ResponseBody body = response.body();
-            return body != null ? body.string() : "";
-        }
-    }
-
-    /**
-     * Simplified version of executeRequestByIp for GET requests
+     * Simplified version of executeRequestByIp for GET requests with enhanced error handling
      *
      * @param ipAddress The IP address to connect to
      * @param hostname The original hostname (for SNI/Host header)
@@ -823,30 +751,87 @@ public class ExternalServicesRequest {
      * @throws IOException If an I/O error occurs
      */
     public String getByIp(String ipAddress, String hostname, String path, boolean isHttps) throws IOException {
-        return executeRequestByIp(ipAddress, hostname, path, "GET", isHttps, null, null);
+        // Validate IP address
+        if (!isValidIpAddress(ipAddress)) {
+            throw new IllegalArgumentException("Invalid IP address: " + ipAddress);
+        }
+
+        // Construct URL with IP instead of hostname
+        String protocol = isHttps ? "https" : "http";
+        String url = protocol + "://" + ipAddress + path;
+
+        LOGGER.info("Attempting direct IP connection to: " + url + " with hostname: " + hostname);
+
+        // Create a custom OkHttpClient for this specific request with appropriate SSL settings
+        OkHttpClient.Builder clientBuilder = client.newBuilder()
+                .hostnameVerifier((host, session) -> {
+                    // Always accept for direct IP connections
+                    return true;
+                });
+
+        // For HTTPS connections, create a trust manager that doesn't validate certificate chains
+        if (isHttps) {
+            try {
+                // Create a trust manager that doesn't validate certificate chains
+                final javax.net.ssl.TrustManager[] trustAllCerts = new javax.net.ssl.TrustManager[] {
+                        new javax.net.ssl.X509TrustManager() {
+                            @Override
+                            public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) {
+                            }
+
+                            @Override
+                            public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) {
+                            }
+
+                            @Override
+                            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                                return new java.security.cert.X509Certificate[]{};
+                            }
+                        }
+                };
+
+                // Install the all-trusting trust manager
+                final javax.net.ssl.SSLContext sslContext = javax.net.ssl.SSLContext.getInstance("SSL");
+                sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+
+                // Create an SSL socket factory with our all-trusting manager
+                final javax.net.ssl.SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+
+                clientBuilder.sslSocketFactory(sslSocketFactory, (javax.net.ssl.X509TrustManager)trustAllCerts[0]);
+            } catch (Exception e) {
+                LOGGER.warning("Failed to create custom SSL context: " + e.getMessage());
+            }
+        }
+
+        OkHttpClient ipClient = clientBuilder.build();
+
+        // Build request with the Host header
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(url)
+                .header("Host", hostname) // Important for SNI
+                .header("Connection", "close"); // Try to avoid connection reuse issues
+
+        try (Response response = ipClient.newCall(requestBuilder.build()).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected response code: " + response.code() + " for " + url);
+            }
+
+            ResponseBody body = response.body();
+            return body != null ? body.string() : "";
+        } catch (SSLPeerUnverifiedException e) {
+            LOGGER.warning("SSL verification failed for direct IP connection: " + e.getMessage());
+            // Fallback to HTTP if HTTPS failed due to cert issues
+            if (isHttps) {
+                LOGGER.info("Trying fallback to HTTP for: " + hostname);
+                return getByIp(ipAddress, hostname, path, false);
+            }
+            throw e;
+        } catch (Exception e) {
+            LOGGER.warning("Direct IP connection failed to " + url + ": " + e.getMessage());
+            throw e;
+        }
     }
 
-    /**
-     * POST request using direct IP
-     *
-     * @param ipAddress The IP address to connect to
-     * @param hostname The original hostname (for SNI/Host header)
-     * @param path The path of the request
-     * @param isHttps Whether to use HTTPS
-     * @param contentType The content type of the request body
-     * @param body The request body as string
-     * @return The response body as a string
-     * @throws IOException If an I/O error occurs
-     */
-    public String postByIp(String ipAddress, String hostname, String path, boolean isHttps,
-                           String contentType, String body) throws IOException {
-        RequestBody requestBody = RequestBody.create(
-                MediaType.parse(contentType),
-                body != null ? body : ""
-        );
-
-        return executeRequestByIp(ipAddress, hostname, path, "POST", isHttps, null, requestBody);
-    }
 
     /**
      * Determine if a hostname is likely to be problematic for DNS resolution
