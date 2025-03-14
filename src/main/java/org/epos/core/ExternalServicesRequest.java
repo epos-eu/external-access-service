@@ -362,12 +362,12 @@ public class ExternalServicesRequest {
         }
 
         // Try BGS-specific resolution for BGS domains
-        if (hostname.endsWith("bgs.ac.uk")) {
-            String bgsIp = resolveBgsSpecificDomain(hostname);
-            if (bgsIp != null) {
-                return bgsIp;
-            }
-        }
+//        if (hostname.endsWith("bgs.ac.uk")) {
+//            String bgsIp = resolveBgsSpecificDomain(hostname);
+//            if (bgsIp != null) {
+//                return bgsIp;
+//            }
+//        }
 
         // Try system DNS - most reliable
         try {
