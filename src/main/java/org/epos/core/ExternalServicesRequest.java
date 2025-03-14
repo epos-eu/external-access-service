@@ -3,122 +3,194 @@ package org.epos.core;
 import okhttp3.*;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 public class ExternalServicesRequest {
+    private static final Logger LOGGER = Logger.getLogger(ExternalServicesRequest.class.getName());
+
     private final OkHttpClient client;
     private final int MAX_RETRIES = 3;
     private final int CONNECTION_TIMEOUT = 30; // seconds
     private final int READ_TIMEOUT = 30; // seconds
     private final int WRITE_TIMEOUT = 30; // seconds
 
-    // Default fallback DNS servers (configurable)
-    private final String[] fallbackDnsServers;
-
     // Map to store host-to-IP mappings for services that need direct IP access
     private final Map<String, String> hostToIpMap = new ConcurrentHashMap<>();
 
+    // Cache resolved IPs to avoid repeated lookups
+    private final Map<String, IpMappingEntry> ipCache = new ConcurrentHashMap<>();
+
+    // Configurable cache TTL in milliseconds
+    private final long ipCacheTtlMs;
+
+    // Properties file name for IPs
+    private static final String IP_MAPPINGS_FILE = "host-ip-mappings.properties";
+    private final String ipMappingsPath;
+
+    // Environment variable prefix for IP mappings
+    private static final String ENV_PREFIX = "SERVICE_IP_";
+
     /**
-     * Default constructor that uses system DNS with internal fallbacks
+     * Default constructor with a 1-hour cache TTL
      */
     public ExternalServicesRequest() {
-        this(null);
+        this(3600000, null);
     }
 
     /**
-     * Constructor with configurable fallback DNS servers
-     * @param fallbackDnsServers Array of DNS servers to use as fallback, null for defaults
+     * Constructor with configurable cache TTL and optional custom mappings file path
+     *
+     * @param ipCacheTtlMs Time-to-live for IP cache entries in milliseconds
+     * @param ipMappingsPath Custom path to host-IP mappings properties file (null for default)
      */
-    public ExternalServicesRequest(String[] fallbackDnsServers) {
-        // Use provided DNS servers or empty array to rely on system/K8s DNS only
-        this.fallbackDnsServers = fallbackDnsServers != null ? fallbackDnsServers : new String[0];
+    public ExternalServicesRequest(long ipCacheTtlMs, String ipMappingsPath) {
+        this.ipCacheTtlMs = ipCacheTtlMs;
+        this.ipMappingsPath = ipMappingsPath;
 
-        // Configure DNS resolver with fallback mechanisms
-        DirectIpDns directIpDns = new DirectIpDns(this.fallbackDnsServers, hostToIpMap);
+        // Load IP mappings from various sources
+        loadMappingsFromEnvironment();
+        loadMappingsFromProperties();
+
+        // Configure DNS resolver with automatic IP resolution
+        AutoIpDns autoIpDns = new AutoIpDns(hostToIpMap, ipCache, ipCacheTtlMs);
 
         // Build the OkHttp client with our custom configurations
         client = new OkHttpClient.Builder()
                 .connectTimeout(CONNECTION_TIMEOUT, TimeUnit.SECONDS)
                 .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
                 .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
-                .dns(directIpDns)
+                .dns(autoIpDns)
                 .addInterceptor(new RetryInterceptor(MAX_RETRIES))
                 .build();
     }
 
     /**
-     * Register a direct IP mapping for a specific hostname
-     * This will cause all requests to this host to use the provided IP directly
-     *
-     * @param hostname The hostname to map (e.g., "api.example.com")
-     * @param ipAddress The IP address to use (e.g., "192.168.1.1")
-     * @return The current instance for method chaining
+     * Load IP mappings from environment variables
+     * Format: SERVICE_IP_[hostname with dots replaced by underscores] = [IP address]
+     * Example: SERVICE_IP_api_example_com=192.168.1.100
      */
-    public ExternalServicesRequest registerDirectIp(String hostname, String ipAddress) {
-        hostToIpMap.put(hostname, ipAddress);
-        return this;
-    }
-
-    /**
-     * Register multiple direct IP mappings at once
-     *
-     * @param mappings Map of hostname to IP address mappings
-     * @return The current instance for method chaining
-     */
-    public ExternalServicesRequest registerDirectIps(Map<String, String> mappings) {
-        if (mappings != null) {
-            hostToIpMap.putAll(mappings);
+    private void loadMappingsFromEnvironment() {
+        Map<String, String> env = System.getenv();
+        for (Map.Entry<String, String> entry : env.entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith(ENV_PREFIX)) {
+                String hostname = key.substring(ENV_PREFIX.length())
+                        .toLowerCase()
+                        .replace('_', '.');
+                String ip = entry.getValue();
+                if (isValidIpAddress(ip)) {
+                    hostToIpMap.put(hostname, ip);
+                    LOGGER.info("Loaded IP mapping from environment: " + hostname + " -> " + ip);
+                } else {
+                    LOGGER.warning("Invalid IP format in environment variable " + key + ": " + ip);
+                }
+            }
         }
-        return this;
     }
 
     /**
-     * Remove a direct IP mapping
-     *
-     * @param hostname The hostname to remove mapping for
-     * @return The current instance for method chaining
+     * Load IP mappings from properties file
+     * Format is hostname=ipaddress
      */
-    public ExternalServicesRequest removeDirectIp(String hostname) {
-        hostToIpMap.remove(hostname);
-        return this;
+    private void loadMappingsFromProperties() {
+        Properties props = new Properties();
+
+        // Try to load from custom path if provided
+        if (ipMappingsPath != null) {
+            loadPropertiesFromPath(props, ipMappingsPath);
+        } else {
+            // Try multiple standard locations
+            String[] paths = {
+                    IP_MAPPINGS_FILE,
+                    System.getProperty("user.dir") + File.separator + IP_MAPPINGS_FILE,
+                    System.getProperty("user.home") + File.separator + IP_MAPPINGS_FILE,
+                    "/etc/" + IP_MAPPINGS_FILE,
+                    "/config/" + IP_MAPPINGS_FILE  // Common mount point in containers
+            };
+
+            boolean loaded = false;
+            for (String path : paths) {
+                if (loadPropertiesFromPath(props, path)) {
+                    loaded = true;
+                    break;
+                }
+            }
+
+            if (!loaded) {
+                LOGGER.info("No IP mappings file found in standard locations");
+            }
+        }
+
+        // Process the loaded properties
+        for (String hostname : props.stringPropertyNames()) {
+            String ip = props.getProperty(hostname);
+            if (isValidIpAddress(ip)) {
+                hostToIpMap.put(hostname, ip);
+                LOGGER.info("Loaded IP mapping from properties: " + hostname + " -> " + ip);
+            } else {
+                LOGGER.warning("Invalid IP format in properties for " + hostname + ": " + ip);
+            }
+        }
     }
 
     /**
-     * Get a copy of the current direct IP mappings
-     *
-     * @return Map of hostname to IP mappings
+     * Helper method to load properties from a specific path
      */
-    public Map<String, String> getDirectIpMappings() {
-        return new HashMap<>(hostToIpMap);
+    private boolean loadPropertiesFromPath(Properties props, String path) {
+        File file = new File(path);
+        if (file.exists() && file.canRead()) {
+            try (FileInputStream fis = new FileInputStream(file)) {
+                props.load(fis);
+                LOGGER.info("Loaded IP mappings from " + path);
+                return true;
+            } catch (IOException e) {
+                LOGGER.warning("Failed to load IP mappings from " + path + ": " + e.getMessage());
+            }
+        }
+        return false;
     }
 
     /**
-     * Executes a GET request to the provided URL with direct IP if configured,
-     * or with robust fallback mechanisms
+     * Validate IP address format
+     */
+    private boolean isValidIpAddress(String ip) {
+        if (ip == null || ip.isEmpty()) {
+            return false;
+        }
+
+        try {
+            // Simple validation - convert to InetAddress to verify format
+            InetAddress.getByName(ip);
+            return true;
+        } catch (UnknownHostException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Executes a GET request to the provided URL with automatic IP resolution
      */
     public String getResponseBodyWithFallback(String url) {
         String result = "";
         List<String> errors = new ArrayList<>();
 
         try {
-            // Extract hostname from URL to check if we have a direct IP mapping
-            String hostname = new java.net.URL(url).getHost();
-
-            // If we have a direct IP mapping, we'll use the custom DNS resolver
-            // that's already configured in the client
+            // First try with normal flow (will use our custom DNS resolver)
             result = getResponseBody(url);
             return result;
         } catch (IOException e) {
             errors.add("Primary attempt failed: " + e.getMessage());
 
-            // If standard request fails, try again with explicit connection close
-            // This can help with connection pool issues in containerized environments
             try {
+                // Try again with connection close header
                 Request request = new Request.Builder()
                         .url(url)
                         .header("Connection", "close") // Force connection close
@@ -136,20 +208,27 @@ public class ExternalServicesRequest {
                 errors.add("Retry with connection close failed: " + retryEx.getMessage());
             }
 
-            // Last resort - try with manual hostname resolution
+            // Try to resolve and cache IP if it's a DNS issue
             try {
                 String hostname = new java.net.URL(url).getHost();
                 String resolvedIp = resolveHostnameDirectly(hostname);
 
                 if (resolvedIp != null) {
-                    // Create a temporary direct IP mapping and try again
-                    registerDirectIp(hostname, resolvedIp);
-                    try {
-                        result = getResponseBody(url);
-                        return result;
-                    } finally {
-                        // Clean up the temporary mapping
-                        removeDirectIp(hostname);
+                    // Cache this resolution for future use
+                    ipCache.put(hostname, new IpMappingEntry(resolvedIp, System.currentTimeMillis() + ipCacheTtlMs));
+
+                    // Try again with the resolved IP
+                    Request request = new Request.Builder()
+                            .url(url)
+                            .build();
+
+                    try (Response response = client.newCall(request).execute()) {
+                        if (!response.isSuccessful()) {
+                            throw new IOException("Unexpected response code: " + response);
+                        }
+
+                        ResponseBody body = response.body();
+                        return body != null ? body.string() : "";
                     }
                 }
             } catch (Exception urlEx) {
@@ -185,50 +264,6 @@ public class ExternalServicesRequest {
                 .build();
 
         try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected response code: " + response);
-            }
-
-            ResponseBody body = response.body();
-            return body != null ? body.string() : "";
-        }
-    }
-
-    /**
-     * Executes a request to a service using direct IP and a specific hostname for SNI
-     * This is useful when you need to access a service by IP but need a valid hostname for TLS
-     *
-     * @param ipAddress The IP address to connect to
-     * @param hostname The hostname to use for SNI/Host header
-     * @param path The path part of the URL (e.g., "/api/v1/data")
-     * @param isHttps Whether to use HTTPS (true) or HTTP (false)
-     * @return The response body as a string
-     * @throws IOException If an I/O error occurs
-     */
-    public String getResponseBodyByIp(String ipAddress, String hostname, String path, boolean isHttps) throws IOException {
-        // Construct the URL with IP directly
-        String protocol = isHttps ? "https" : "http";
-        String url = protocol + "://" + ipAddress + path;
-
-        Request request = new Request.Builder()
-                .url(url)
-                .header("Host", hostname)  // Set hostname for virtual hosting
-                .build();
-
-        // Create a client that will not try to resolve the IP (as it's already resolved)
-        OkHttpClient ipClient = client.newBuilder()
-                .dns(new Dns() {
-                    @Override
-                    public List<InetAddress> lookup(String host) throws UnknownHostException {
-                        if (host.equals(ipAddress)) {
-                            return Collections.singletonList(InetAddress.getByName(ipAddress));
-                        }
-                        return Dns.SYSTEM.lookup(host);
-                    }
-                })
-                .build();
-
-        try (Response response = ipClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 throw new IOException("Unexpected response code: " + response);
             }
@@ -299,46 +334,79 @@ public class ExternalServicesRequest {
     }
 
     /**
-     * Custom DNS resolver that supports direct IP mappings and fallbacks
+     * Entry in the IP mapping cache with expiration
      */
-    private static class DirectIpDns implements Dns {
-        private final Dns systemDns = Dns.SYSTEM;
-        private final OkHttpDnsCache dnsCache = new OkHttpDnsCache();
-        private final String[] fallbackDnsServers;
-        private final Map<String, String> hostToIpMap;
+    private static class IpMappingEntry {
+        private final String ipAddress;
+        private final long expirationTimeMs;
 
-        public DirectIpDns(String[] fallbackDnsServers, Map<String, String> hostToIpMap) {
-            this.fallbackDnsServers = fallbackDnsServers;
+        public IpMappingEntry(String ipAddress, long expirationTimeMs) {
+            this.ipAddress = ipAddress;
+            this.expirationTimeMs = expirationTimeMs;
+        }
+
+        public String getIpAddress() {
+            return ipAddress;
+        }
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expirationTimeMs;
+        }
+    }
+
+    /**
+     * DNS resolver that automatically resolves and caches IPs
+     */
+    private static class AutoIpDns implements Dns {
+        private final Dns systemDns = Dns.SYSTEM;
+        private final Map<String, String> hostToIpMap;
+        private final Map<String, IpMappingEntry> ipCache;
+        private final long ipCacheTtlMs;
+
+        public AutoIpDns(Map<String, String> hostToIpMap, Map<String, IpMappingEntry> ipCache, long ipCacheTtlMs) {
             this.hostToIpMap = hostToIpMap;
+            this.ipCache = ipCache;
+            this.ipCacheTtlMs = ipCacheTtlMs;
         }
 
         @Override
         public List<InetAddress> lookup(String hostname) throws UnknownHostException {
-            // Check if we have a direct IP mapping for this hostname
-            String directIp = hostToIpMap.get(hostname);
-            if (directIp != null) {
+            // Check if we have a static mapping
+            String staticIp = hostToIpMap.get(hostname);
+            if (staticIp != null) {
                 try {
-                    return Collections.singletonList(InetAddress.getByName(directIp));
+                    return Collections.singletonList(InetAddress.getByName(staticIp));
                 } catch (UnknownHostException e) {
-                    throw new UnknownHostException("Invalid IP mapping for " + hostname + ": " + directIp);
+                    LOGGER.warning("Invalid IP mapping for " + hostname + ": " + staticIp);
+                    // Continue to other resolution methods
                 }
             }
 
-            // Check cache
-            List<InetAddress> cachedAddresses = dnsCache.get(hostname);
-            if (cachedAddresses != null && !cachedAddresses.isEmpty()) {
-                return cachedAddresses;
+            // Check dynamic cache
+            IpMappingEntry cacheEntry = ipCache.get(hostname);
+            if (cacheEntry != null && !cacheEntry.isExpired()) {
+                try {
+                    return Collections.singletonList(InetAddress.getByName(cacheEntry.getIpAddress()));
+                } catch (UnknownHostException e) {
+                    // Invalid cached entry, remove it
+                    ipCache.remove(hostname);
+                }
+            } else if (cacheEntry != null) {
+                // Entry expired, remove it
+                ipCache.remove(hostname);
             }
 
-            // Primary lookup: Use system DNS (this includes Kubernetes DNS in cluster)
+            // Try system DNS first
             try {
                 List<InetAddress> addresses = systemDns.lookup(hostname);
                 if (!addresses.isEmpty()) {
-                    dnsCache.put(hostname, addresses);
+                    // Cache successful resolution
+                    String resolvedIp = addresses.get(0).getHostAddress();
+                    ipCache.put(hostname, new IpMappingEntry(resolvedIp, System.currentTimeMillis() + ipCacheTtlMs));
                     return addresses;
                 }
             } catch (UnknownHostException e) {
-                // System DNS failed, continue to fallbacks
+                // Fall through to try other methods
             }
 
             // Check if hostname is already an IP address
@@ -348,44 +416,11 @@ public class ExternalServicesRequest {
                     return Collections.singletonList(ipAddress);
                 }
             } catch (UnknownHostException e) {
-                // Not an IP address, continue to alternative resolution
-            }
-
-            // Only use fallback DNS if configured
-            if (fallbackDnsServers.length > 0) {
-                try {
-                    // This would be an implementation using fallback DNS servers
-                    // In production, this would require a proper DNS library
-                    InetAddress[] addresses = InetAddress.getAllByName(hostname);
-                    List<InetAddress> resultList = Arrays.asList(addresses);
-                    if (!resultList.isEmpty()) {
-                        dnsCache.put(hostname, resultList);
-                        return resultList;
-                    }
-                } catch (UnknownHostException e) {
-                    // Alternative lookup failed
-                }
+                // Not an IP address, continue
             }
 
             // All attempts failed, throw exception
             throw new UnknownHostException("Unable to resolve host " + hostname);
-        }
-    }
-
-    /**
-     * Simple DNS cache implementation
-     */
-    private static class OkHttpDnsCache {
-        // In a production system, use a more sophisticated cache with TTL and eviction
-        private final java.util.Map<String, List<InetAddress>> cache =
-                Collections.synchronizedMap(new java.util.HashMap<>());
-
-        public List<InetAddress> get(String hostname) {
-            return cache.get(hostname);
-        }
-
-        public void put(String hostname, List<InetAddress> addresses) {
-            cache.put(hostname, addresses);
         }
     }
 
