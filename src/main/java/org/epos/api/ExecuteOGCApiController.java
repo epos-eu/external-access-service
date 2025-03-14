@@ -110,10 +110,12 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			}
 		}
 
-
-		for(String key : headers.keySet()) {
-			httpHeaders.put(key,headers.get(key));
+		if(headers!=null) {
+			for(String key : headers.keySet()) {
+				httpHeaders.put(key,headers.get(key));
+			}
 		}
+
 
 		try {
 
