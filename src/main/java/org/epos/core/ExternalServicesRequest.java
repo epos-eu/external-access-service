@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 public class ExternalServicesRequest {
@@ -18,6 +19,9 @@ public class ExternalServicesRequest {
 
     // Default fallback DNS servers (configurable)
     private final String[] fallbackDnsServers;
+
+    // Map to store host-to-IP mappings for services that need direct IP access
+    private final Map<String, String> hostToIpMap = new ConcurrentHashMap<>();
 
     /**
      * Default constructor that uses system DNS with internal fallbacks
@@ -35,28 +39,78 @@ public class ExternalServicesRequest {
         this.fallbackDnsServers = fallbackDnsServers != null ? fallbackDnsServers : new String[0];
 
         // Configure DNS resolver with fallback mechanisms
-        Dns robustDns = new RobustDns(this.fallbackDnsServers);
+        DirectIpDns directIpDns = new DirectIpDns(this.fallbackDnsServers, hostToIpMap);
 
         // Build the OkHttp client with our custom configurations
         client = new OkHttpClient.Builder()
                 .connectTimeout(CONNECTION_TIMEOUT, TimeUnit.SECONDS)
                 .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
                 .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
-                .dns(robustDns)
+                .dns(directIpDns)
                 .addInterceptor(new RetryInterceptor(MAX_RETRIES))
                 .build();
     }
 
     /**
-     * Executes a GET request to the provided URL and returns the response body as a string
-     * with enhanced error handling
+     * Register a direct IP mapping for a specific hostname
+     * This will cause all requests to this host to use the provided IP directly
+     *
+     * @param hostname The hostname to map (e.g., "api.example.com")
+     * @param ipAddress The IP address to use (e.g., "192.168.1.1")
+     * @return The current instance for method chaining
+     */
+    public ExternalServicesRequest registerDirectIp(String hostname, String ipAddress) {
+        hostToIpMap.put(hostname, ipAddress);
+        return this;
+    }
+
+    /**
+     * Register multiple direct IP mappings at once
+     *
+     * @param mappings Map of hostname to IP address mappings
+     * @return The current instance for method chaining
+     */
+    public ExternalServicesRequest registerDirectIps(Map<String, String> mappings) {
+        if (mappings != null) {
+            hostToIpMap.putAll(mappings);
+        }
+        return this;
+    }
+
+    /**
+     * Remove a direct IP mapping
+     *
+     * @param hostname The hostname to remove mapping for
+     * @return The current instance for method chaining
+     */
+    public ExternalServicesRequest removeDirectIp(String hostname) {
+        hostToIpMap.remove(hostname);
+        return this;
+    }
+
+    /**
+     * Get a copy of the current direct IP mappings
+     *
+     * @return Map of hostname to IP mappings
+     */
+    public Map<String, String> getDirectIpMappings() {
+        return new HashMap<>(hostToIpMap);
+    }
+
+    /**
+     * Executes a GET request to the provided URL with direct IP if configured,
+     * or with robust fallback mechanisms
      */
     public String getResponseBodyWithFallback(String url) {
         String result = "";
         List<String> errors = new ArrayList<>();
 
-        // Try main request
         try {
+            // Extract hostname from URL to check if we have a direct IP mapping
+            String hostname = new java.net.URL(url).getHost();
+
+            // If we have a direct IP mapping, we'll use the custom DNS resolver
+            // that's already configured in the client
             result = getResponseBody(url);
             return result;
         } catch (IOException e) {
@@ -82,42 +136,24 @@ public class ExternalServicesRequest {
                 errors.add("Retry with connection close failed: " + retryEx.getMessage());
             }
 
-            // Last resort - if DNS is the issue and we have fallback servers configured
-            if (e instanceof UnknownHostException && fallbackDnsServers.length > 0) {
-                try {
-                    // Extract hostname from URL to resolve it directly
-                    String hostname = new java.net.URL(url).getHost();
-                    String resolvedIp = resolveHostnameDirectly(hostname);
+            // Last resort - try with manual hostname resolution
+            try {
+                String hostname = new java.net.URL(url).getHost();
+                String resolvedIp = resolveHostnameDirectly(hostname);
 
-                    if (resolvedIp != null) {
-                        // Don't replace in URL as that might break TLS/SNI - instead use IP with hostname in header
-                        Request request = new Request.Builder()
-                                .url(url)
-                                .header("Host", hostname)
-                                .build();
-
-                        // Create a new client that will connect to the IP but send hostname in TLS SNI
-                        OkHttpClient ipClient = client.newBuilder()
-                                .dns(hostname1 -> {
-                                    if (hostname1.equals(hostname)) {
-                                        return Collections.singletonList(InetAddress.getByName(resolvedIp));
-                                    }
-                                    return client.dns().lookup(hostname1);
-                                })
-                                .build();
-
-                        try (Response response = ipClient.newCall(request).execute()) {
-                            if (!response.isSuccessful()) {
-                                throw new IOException("Unexpected response code: " + response);
-                            }
-
-                            ResponseBody body = response.body();
-                            return body != null ? body.string() : "";
-                        }
+                if (resolvedIp != null) {
+                    // Create a temporary direct IP mapping and try again
+                    registerDirectIp(hostname, resolvedIp);
+                    try {
+                        result = getResponseBody(url);
+                        return result;
+                    } finally {
+                        // Clean up the temporary mapping
+                        removeDirectIp(hostname);
                     }
-                } catch (Exception urlEx) {
-                    errors.add("IP fallback failed: " + urlEx.getMessage());
                 }
+            } catch (Exception urlEx) {
+                errors.add("IP fallback failed: " + urlEx.getMessage());
             }
         }
 
@@ -149,6 +185,50 @@ public class ExternalServicesRequest {
                 .build();
 
         try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected response code: " + response);
+            }
+
+            ResponseBody body = response.body();
+            return body != null ? body.string() : "";
+        }
+    }
+
+    /**
+     * Executes a request to a service using direct IP and a specific hostname for SNI
+     * This is useful when you need to access a service by IP but need a valid hostname for TLS
+     *
+     * @param ipAddress The IP address to connect to
+     * @param hostname The hostname to use for SNI/Host header
+     * @param path The path part of the URL (e.g., "/api/v1/data")
+     * @param isHttps Whether to use HTTPS (true) or HTTP (false)
+     * @return The response body as a string
+     * @throws IOException If an I/O error occurs
+     */
+    public String getResponseBodyByIp(String ipAddress, String hostname, String path, boolean isHttps) throws IOException {
+        // Construct the URL with IP directly
+        String protocol = isHttps ? "https" : "http";
+        String url = protocol + "://" + ipAddress + path;
+
+        Request request = new Request.Builder()
+                .url(url)
+                .header("Host", hostname)  // Set hostname for virtual hosting
+                .build();
+
+        // Create a client that will not try to resolve the IP (as it's already resolved)
+        OkHttpClient ipClient = client.newBuilder()
+                .dns(new Dns() {
+                    @Override
+                    public List<InetAddress> lookup(String host) throws UnknownHostException {
+                        if (host.equals(ipAddress)) {
+                            return Collections.singletonList(InetAddress.getByName(ipAddress));
+                        }
+                        return Dns.SYSTEM.lookup(host);
+                    }
+                })
+                .build();
+
+        try (Response response = ipClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 throw new IOException("Unexpected response code: " + response);
             }
@@ -219,21 +299,32 @@ public class ExternalServicesRequest {
     }
 
     /**
-     * Custom DNS resolver that implements fallback mechanisms
-     * Respects Kubernetes DNS configurations
+     * Custom DNS resolver that supports direct IP mappings and fallbacks
      */
-    private static class RobustDns implements Dns {
+    private static class DirectIpDns implements Dns {
         private final Dns systemDns = Dns.SYSTEM;
         private final OkHttpDnsCache dnsCache = new OkHttpDnsCache();
         private final String[] fallbackDnsServers;
+        private final Map<String, String> hostToIpMap;
 
-        public RobustDns(String[] fallbackDnsServers) {
+        public DirectIpDns(String[] fallbackDnsServers, Map<String, String> hostToIpMap) {
             this.fallbackDnsServers = fallbackDnsServers;
+            this.hostToIpMap = hostToIpMap;
         }
 
         @Override
         public List<InetAddress> lookup(String hostname) throws UnknownHostException {
-            // Always check cache first
+            // Check if we have a direct IP mapping for this hostname
+            String directIp = hostToIpMap.get(hostname);
+            if (directIp != null) {
+                try {
+                    return Collections.singletonList(InetAddress.getByName(directIp));
+                } catch (UnknownHostException e) {
+                    throw new UnknownHostException("Invalid IP mapping for " + hostname + ": " + directIp);
+                }
+            }
+
+            // Check cache
             List<InetAddress> cachedAddresses = dnsCache.get(hostname);
             if (cachedAddresses != null && !cachedAddresses.isEmpty()) {
                 return cachedAddresses;
@@ -260,9 +351,7 @@ public class ExternalServicesRequest {
                 // Not an IP address, continue to alternative resolution
             }
 
-            // We rely on system fallbacks and don't override with custom DNS servers in Kubernetes
-            // This prevents conflicts with cluster DNS
-            // For non-Kubernetes environments, fallback DNS can be enabled via constructor
+            // Only use fallback DNS if configured
             if (fallbackDnsServers.length > 0) {
                 try {
                     // This would be an implementation using fallback DNS servers
