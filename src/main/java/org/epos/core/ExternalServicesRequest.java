@@ -63,8 +63,13 @@ public class ExternalServicesRequest {
 			if (clusterDNS == null) {
 				LOGGER.error("Failed to detect Kubernetes Cluster DNS");
 			}
-			LOGGER.info("Cluster DNS: " + Dns.SYSTEM.toString());
-			builder.dns(Dns.SYSTEM);
+
+			builder.dns(hostname -> {
+				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
+				LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
+				return Dns.SYSTEM.lookup(hostname);
+
+			});
 		}
 		return instance;
 	}
