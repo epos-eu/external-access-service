@@ -49,11 +49,14 @@ public class ExternalServicesRequest {
             "https://8.8.8.8/resolve?name=%s&type=A"           // Google DNS alternate
     };
 
+    // Flag to enable/disable direct IP connection attempts
+    private final boolean enableDirectIpConnections;
+
     /**
      * Default constructor with a 1-hour cache TTL
      */
     public ExternalServicesRequest() {
-        this(3600000, null);
+        this(3600000, null, true);
     }
 
     /**
@@ -63,8 +66,20 @@ public class ExternalServicesRequest {
      * @param ipMappingsPath Custom path to host-IP mappings properties file (null for default)
      */
     public ExternalServicesRequest(long ipCacheTtlMs, String ipMappingsPath) {
+        this(ipCacheTtlMs, ipMappingsPath, true);
+    }
+
+    /**
+     * Constructor with configurable cache TTL, mappings file path, and direct IP connection option
+     *
+     * @param ipCacheTtlMs Time-to-live for IP cache entries in milliseconds
+     * @param ipMappingsPath Custom path to host-IP mappings properties file (null for default)
+     * @param enableDirectIpConnections Whether to enable direct IP connection attempts
+     */
+    public ExternalServicesRequest(long ipCacheTtlMs, String ipMappingsPath, boolean enableDirectIpConnections) {
         this.ipCacheTtlMs = ipCacheTtlMs;
         this.ipMappingsPath = ipMappingsPath;
+        this.enableDirectIpConnections = enableDirectIpConnections;
 
         // Load IP mappings from various sources
         loadMappingsFromEnvironment();
@@ -232,11 +247,31 @@ public class ExternalServicesRequest {
                 // Try to resolve using external DNS services if not already resolved
                 String resolvedIp = resolveUsingExternalDns(hostname);
 
-                if (resolvedIp != null) {
+                if (resolvedIp != null && enableDirectIpConnections) {
                     // Cache this resolution for future use
                     ipCache.put(hostname, new IpMappingEntry(resolvedIp, System.currentTimeMillis() + ipCacheTtlMs));
 
-                    // Try manual HTTP connection with the resolved IP
+                    // Try connection with the resolved IP using our specialized method
+                    try {
+                        URL originalUrl = new URL(url);
+                        boolean isHttps = "https".equalsIgnoreCase(originalUrl.getProtocol());
+                        int port = originalUrl.getPort();
+                        String portPart = (port != -1) ? ":" + port : "";
+                        String path = originalUrl.getPath() + (originalUrl.getQuery() != null ? "?" + originalUrl.getQuery() : "");
+
+                        // Use our direct IP method
+                        String response = getByIp(resolvedIp + portPart, hostname, path, isHttps);
+
+                        // Store the IP mapping for future use
+                        hostToIpMap.put(hostname, resolvedIp);
+                        LOGGER.info("Successfully connected to " + hostname + " using IP " + resolvedIp);
+
+                        return response;
+                    } catch (Exception connEx) {
+                        errors.add("Direct IP connection with resolved IP failed: " + connEx.getMessage());
+                    }
+
+                    // Fall back to manual connection if our specialized method fails
                     try {
                         // Create a modified URL with the IP instead of hostname
                         URL originalUrl = new URL(url);
@@ -257,7 +292,7 @@ public class ExternalServicesRequest {
 
                             // Store the IP mapping for future use
                             hostToIpMap.put(hostname, resolvedIp);
-                            LOGGER.info("Successfully connected to " + hostname + " using IP " + resolvedIp);
+                            LOGGER.info("Successfully connected to " + hostname + " using manual IP connection");
 
                             return response;
                         } else {
@@ -554,6 +589,109 @@ public class ExternalServicesRequest {
      */
     public Response executeRequest(Request request) throws IOException {
         return client.newCall(request).execute();
+    }
+
+    /**
+     * Executes a request directly using an IP address instead of hostname
+     * This is useful for bypassing DNS resolution completely
+     *
+     * @param ipAddress The IP address to connect to
+     * @param hostname The original hostname (for SNI/Host header)
+     * @param path The path of the request (e.g., "/api/data")
+     * @param method The HTTP method (GET, POST, etc.)
+     * @param isHttps Whether to use HTTPS (true) or HTTP (false)
+     * @param headers Additional HTTP headers to include
+     * @param requestBody The request body for POST/PUT requests (null for GET/HEAD)
+     * @return The response body as a string
+     * @throws IOException If an I/O error occurs
+     */
+    public String executeRequestByIp(String ipAddress, String hostname, String path,
+                                     String method, boolean isHttps,
+                                     Map<String, String> headers,
+                                     RequestBody requestBody) throws IOException {
+        // Validate IP address
+        if (!isValidIpAddress(ipAddress)) {
+            throw new IllegalArgumentException("Invalid IP address: " + ipAddress);
+        }
+
+        // Construct URL with IP instead of hostname
+        String protocol = isHttps ? "https" : "http";
+        String url = protocol + "://" + ipAddress + path;
+
+        // Build request with the Host header
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(url)
+                .method(method, requestBody);
+
+        // Add Host header for SNI/virtual hosting
+        requestBuilder.header("Host", hostname);
+
+        // Add other headers if provided
+        if (headers != null) {
+            for (Map.Entry<String, String> entry : headers.entrySet()) {
+                requestBuilder.header(entry.getKey(), entry.getValue());
+            }
+        }
+
+        // Create custom client that bypasses DNS resolution for this IP
+        OkHttpClient ipClient = client.newBuilder()
+                .dns(new Dns() {
+                    @Override
+                    public List<InetAddress> lookup(String host) throws UnknownHostException {
+                        // For the target IP, return it directly
+                        if (host.equals(ipAddress)) {
+                            return Collections.singletonList(InetAddress.getByName(ipAddress));
+                        }
+                        // For other hostnames, use the default resolver
+                        return Dns.SYSTEM.lookup(host);
+                    }
+                })
+                .build();
+
+        try (Response response = ipClient.newCall(requestBuilder.build()).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected response code: " + response);
+            }
+
+            ResponseBody body = response.body();
+            return body != null ? body.string() : "";
+        }
+    }
+
+    /**
+     * Simplified version of executeRequestByIp for GET requests
+     *
+     * @param ipAddress The IP address to connect to
+     * @param hostname The original hostname (for SNI/Host header)
+     * @param path The path of the request
+     * @param isHttps Whether to use HTTPS
+     * @return The response body as a string
+     * @throws IOException If an I/O error occurs
+     */
+    public String getByIp(String ipAddress, String hostname, String path, boolean isHttps) throws IOException {
+        return executeRequestByIp(ipAddress, hostname, path, "GET", isHttps, null, null);
+    }
+
+    /**
+     * POST request using direct IP
+     *
+     * @param ipAddress The IP address to connect to
+     * @param hostname The original hostname (for SNI/Host header)
+     * @param path The path of the request
+     * @param isHttps Whether to use HTTPS
+     * @param contentType The content type of the request body
+     * @param body The request body as string
+     * @return The response body as a string
+     * @throws IOException If an I/O error occurs
+     */
+    public String postByIp(String ipAddress, String hostname, String path, boolean isHttps,
+                           String contentType, String body) throws IOException {
+        RequestBody requestBody = RequestBody.create(
+                MediaType.parse(contentType),
+                body != null ? body : ""
+        );
+
+        return executeRequestByIp(ipAddress, hostname, path, "POST", isHttps, null, requestBody);
     }
 
     /**

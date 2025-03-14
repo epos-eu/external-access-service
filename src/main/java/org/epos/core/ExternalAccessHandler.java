@@ -101,19 +101,11 @@ public class ExternalAccessHandler {
                     LOGGER.debug("Direct request");
                     if(conversion==null) {
                         LOGGER.debug("Is native GeoJSON or CovJSON");
-                        try {
-                            String responsePayload = robustClient.getResponseBody(compiledUrl);
-                            if(responsePayload!=null) responseMap.put("content", responsePayload.isEmpty() ? "{}" : responsePayload);
-                            else {
-                                responseMap = new HashMap<>();
-                                responseMap.put("httpStatusCode", "400");
-                                return responseMap;
-                            }
-                        } catch (IOException e) {
-                            LOGGER.error(e.toString());
-                            LOGGER.error("Impossible to get any response from "+compiledUrl);
+                        String responsePayload = robustClient.getResponseBodyWithFallback(compiledUrl);
+                        if(responsePayload!=null) responseMap.put("content", responsePayload.isEmpty() ? "{}" : responsePayload);
+                        else {
                             responseMap = new HashMap<>();
-                            responseMap.put("httpStatusCode", "503");
+                            responseMap.put("httpStatusCode", "400");
                             return responseMap;
                         }
                         return responseMap;
@@ -139,7 +131,7 @@ public class ExternalAccessHandler {
                             }
                             parametersMap.put("responseContentType", conversion.has("responseContentType") ? conversion.get("responseContentType").getAsString() : null);					//parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
                             responseMap.put("parameters", parametersMap);
-                            String responsePayload = robustClient.getResponseBody(compiledUrl);
+                            String responsePayload = robustClient.getResponseBodyWithFallback(compiledUrl);
                             responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
 
                             return responseMap;
