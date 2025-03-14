@@ -16,4 +16,4 @@ RUN apk add --no-cache \
 
 
 # Ensure dnsmasq starts before the Java application
-CMD dnsmasq -k & java -Djsse.enableSNIExtension=false -Djava.security.egd=file:/dev/./urandom -jar /app.jar
+CMD dnsmasq -k & java -Djava.security.egd=file:/dev/./urandom -jar /app.jar

@@ -67,11 +67,11 @@ public class ExternalServicesRequest {
 			builder.dns(hostname -> {
 				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
 				try {
-					LOGGER.info(Collections.singletonList(InetAddress.getByName(clusterDNS)).toString());
+					LOGGER.info("COLLECTION SINGLETONLIST: "+Collections.singletonList(InetAddress.getByName(clusterDNS)).toString());
 					return Collections.singletonList(InetAddress.getByName(clusterDNS));
 				} catch (UnknownHostException e) {
 					LOGGER.error("Unknown host: " + hostname+" error: "+e.getMessage());
-					LOGGER.info(Dns.SYSTEM.lookup(hostname).toString());
+					LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
 					return Dns.SYSTEM.lookup(hostname);
 				}
 			});
