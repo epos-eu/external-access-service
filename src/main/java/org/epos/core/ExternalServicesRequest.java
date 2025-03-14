@@ -67,6 +67,8 @@ public class ExternalServicesRequest {
 			builder.dns(hostname -> {
 				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
 				try {
+					LOGGER.info("CLUSTER DNS: "+clusterDNS);
+					LOGGER.info("CLUSTER DNS: "+clusterDNS.replace("\"", ""));
 					LOGGER.info("COLLECTION SINGLETONLIST: "+Collections.singletonList(InetAddress.getByName(clusterDNS)).toString());
 					return Collections.singletonList(InetAddress.getByName(clusterDNS));
 				} catch (UnknownHostException e) {
