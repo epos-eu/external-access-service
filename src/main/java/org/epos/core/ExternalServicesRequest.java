@@ -61,13 +61,17 @@ public class ExternalServicesRequest {
 
 			String clusterDNS = getClusterDNS();
 			if (clusterDNS == null) {
-				System.err.println("Failed to detect Kubernetes Cluster DNS");
+				LOGGER.error("Failed to detect Kubernetes Cluster DNS");
 			}
 
 			builder.dns(hostname -> {
+				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
 				try {
+					LOGGER.info(Collections.singletonList(InetAddress.getByName(clusterDNS)).toString());
 					return Collections.singletonList(InetAddress.getByName(clusterDNS));
 				} catch (UnknownHostException e) {
+					LOGGER.error("Unknown host: " + hostname+" error: "+e.getMessage());
+					LOGGER.info(Dns.SYSTEM.lookup(hostname).toString());
 					return Dns.SYSTEM.lookup(hostname);
 				}
 			});
