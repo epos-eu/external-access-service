@@ -2,6 +2,7 @@ package org.epos.core;
 
 import okhttp3.*;
 
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import java.io.File;
 import java.io.FileInputStream;
@@ -97,6 +98,15 @@ public class ExternalServicesRequest {
                 .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
                 .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
                 .dns(advancedDns)
+                .hostnameVerifier((hostname, session) -> {
+                    // For direct IP connections, skip hostname verification
+                    if (isValidIpAddress(hostname)) {
+                        return true;
+                    }
+
+                    // For normal domain names, use standard verification
+                    return HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session);
+                })
                 .addInterceptor(new RetryInterceptor(MAX_RETRIES))
                 .build();
     }
