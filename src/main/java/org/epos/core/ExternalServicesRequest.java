@@ -16,6 +16,14 @@ public class ExternalServicesRequest {
     private final int READ_TIMEOUT = 30; // seconds
     private final int WRITE_TIMEOUT = 30; // seconds
 
+    // Define alternative DNS servers
+    private static final String[] ALTERNATIVE_DNS_SERVERS = {
+            "8.8.8.8",    // Google DNS
+            "8.8.4.4",    // Google DNS alternative
+            "1.1.1.1",    // Cloudflare DNS
+            "9.9.9.9"     // Quad9 DNS
+    };
+
     public ExternalServicesRequest() {
         // Configure DNS resolver with fallback mechanisms
         Dns robustDns = new RobustDns();
@@ -28,6 +36,69 @@ public class ExternalServicesRequest {
                 .dns(robustDns)
                 .addInterceptor(new RetryInterceptor(MAX_RETRIES))
                 .build();
+    }
+
+    /**
+     * Executes a GET request to the provided URL and returns the response body as a string
+     * with enhanced error handling
+     */
+    public String getResponseBodyWithFallback(String url) {
+        String result = "";
+        List<String> errors = new ArrayList<>();
+
+        // Try main request
+        try {
+            result = getResponseBody(url);
+            return result;
+        } catch (IOException e) {
+            errors.add("Primary attempt failed: " + e.getMessage());
+
+            // If DNS is the issue, try with alternative host resolution
+            if (e instanceof UnknownHostException) {
+                try {
+                    // Extract hostname from URL
+                    String hostname = new java.net.URL(url).getHost();
+
+                    // Try each alternative DNS server
+                    for (String dnsServer : ALTERNATIVE_DNS_SERVERS) {
+                        try {
+                            String resolvedIp = resolveHostnameUsingDns(hostname, dnsServer);
+                            if (resolvedIp != null) {
+                                // Replace hostname with IP in URL
+                                String ipUrl = url.replace(hostname, resolvedIp);
+                                result = getResponseBody(ipUrl);
+                                return result;
+                            }
+                        } catch (Exception dnsEx) {
+                            errors.add("DNS server " + dnsServer + " resolution failed: " + dnsEx.getMessage());
+                        }
+                    }
+                } catch (Exception urlEx) {
+                    errors.add("URL parsing failed: " + urlEx.getMessage());
+                }
+            }
+        }
+
+        // If all attempts failed, return error summary
+        throw new RuntimeException("All attempts to access URL failed. Errors: " + String.join("; ", errors));
+    }
+
+    /**
+     * Attempt to resolve a hostname using a specific DNS server
+     * Note: This is a simplified implementation; in production, use a DNS library
+     */
+    private String resolveHostnameUsingDns(String hostname, String dnsServer) {
+        try {
+            // This would typically use a DNS library to query the specific server
+            // For demonstration, we're using a simpler approach to show the concept
+            InetAddress[] addresses = InetAddress.getAllByName(hostname);
+            if (addresses.length > 0) {
+                return addresses[0].getHostAddress();
+            }
+        } catch (Exception e) {
+            // DNS resolution failed
+        }
+        return null;
     }
 
     /**
@@ -253,33 +324,6 @@ public class ExternalServicesRequest {
                     e instanceof java.net.ConnectException ||
                     e instanceof java.net.UnknownHostException ||
                     e.getMessage() != null && e.getMessage().contains("connection");
-        }
-    }
-
-    // Example usage
-    public static void main(String[] args) {
-        ExternalServicesRequest robustClient = new ExternalServicesRequest();
-
-        try {
-            String url = "https://gifswebapi.bgs.ac.uk/wdc/global-survey/data/";
-
-            // Get response body
-            String body = robustClient.getResponseBody(url);
-            System.out.println("Response body length: " + body.length());
-
-            // Get content type
-            String contentType = robustClient.getContentType(url);
-            System.out.println("Content-Type: " + contentType);
-
-            // Get all headers
-            Headers headers = robustClient.getHeaders(url);
-            System.out.println("\nAll Headers:");
-            for (String name : headers.names()) {
-                System.out.println(name + ": " + headers.get(name));
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 }
