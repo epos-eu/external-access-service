@@ -68,9 +68,9 @@ public class ExternalServicesRequest {
 				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
 				try {
 					LOGGER.info("CLUSTER DNS: "+clusterDNS);
-					LOGGER.info("CLUSTER DNS: "+clusterDNS.replace("\"", ""));
-					LOGGER.info("COLLECTION SINGLETONLIST: "+Collections.singletonList(InetAddress.getByName(clusterDNS.replace("\"", ""))).toString());
-					return Collections.singletonList(InetAddress.getByName(clusterDNS.replace("\"", "")));
+					LOGGER.info("COLLECTION SINGLETONLIST: "+Collections.singletonList(InetAddress.getByName(clusterDNS)).toString());
+					LOGGER.info("INET: "+InetAddress.getByName(clusterDNS));
+					return Collections.singletonList(InetAddress.getByName(clusterDNS));
 				} catch (UnknownHostException e) {
 					LOGGER.error("Unknown host: " + hostname+" error: "+e.getMessage());
 					LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
