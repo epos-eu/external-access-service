@@ -60,7 +60,6 @@ public class ExternalServicesRequest {
 				LOGGER.error("Failed to detect Kubernetes Cluster DNS");
 			}
 			builder.eventListenerFactory(call -> new DnsTimingEventListener());
-
 			builder.dns(hostname -> {
 				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
 				LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
@@ -186,7 +185,7 @@ public class ExternalServicesRequest {
 		}
 
 		//LAST ATTEMPT RESOLVING IP FROM HOST
-		/*request = generateRequestResolvingHost(url);
+		request = generateRequestResolvingHost(url);
 		attempts = 0;
 		while (attempts < MAX_RETRIES) {
 			try (Response response = builder.build().newCall(request).execute()) {
@@ -211,7 +210,7 @@ public class ExternalServicesRequest {
 					LOGGER.info("Max retries reached. Request failed for: " + url);
 				}
 			}
-		}*/
+		}
         return null;
     }
 
