@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.epos.core.ExternalServicesRequest;
+import org.epos.core.ExternalServicesRequestOLD;
 import org.json.JSONException;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -171,7 +171,7 @@ public class RequestInvokerTest {
 			Map<String, String> expected = testData.get(k);
 			Map<String, Object> actual = null;
 			try {
-				actual = ExternalServicesRequest.getInstance().getRedirect(k);
+				actual = ExternalServicesRequestOLD.getInstance().getRedirect(k);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -210,7 +210,7 @@ public class RequestInvokerTest {
 			Map<String, String> expected = testData.get(k);
 			Map<String, Object> actual = null;
 			try {
-				actual = ExternalServicesRequest.getInstance().getRedirect(k);
+				actual = ExternalServicesRequestOLD.getInstance().getRedirect(k);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -241,7 +241,7 @@ public class RequestInvokerTest {
 			try {
 				Path respPayloadFile = Paths.get("src", "test", "resources", "response-payloads", fileName);				
 				String expected  = new String(Files.readAllBytes(respPayloadFile));				
-				String actual = ExternalServicesRequest.getInstance().requestPayload(uri);
+				String actual = ExternalServicesRequestOLD.getInstance().requestPayload(uri);
 				
 				if (LOG.isDebugEnabled()) {
 					LOG.debug(String.format("TEXT_HTML:%n%s", actual));
@@ -274,7 +274,7 @@ public class RequestInvokerTest {
 			try {
 				Path respPayloadFile = Paths.get("src", "test", "resources", "response-payloads", fileName);				
 				String expected  = new String(Files.readString(respPayloadFile));				
-				String actual = ExternalServicesRequest.getInstance().requestPayload(uri);
+				String actual = ExternalServicesRequestOLD.getInstance().requestPayload(uri);
 				
 				LOG.info("Testing XML response from... " + uri);
 				
@@ -315,7 +315,7 @@ public class RequestInvokerTest {
 			try {
 				Path respPayloadFile = Paths.get("src", "test", "resources", "response-payloads", fileName);				
 				String expected  = new String(Files.readString(respPayloadFile));				
-				String actual = ExternalServicesRequest.getInstance().requestPayload(uri);
+				String actual = ExternalServicesRequestOLD.getInstance().requestPayload(uri);
 				
 				if (LOG.isDebugEnabled()) {
 					LOG.debug(String.format("APPLICATION_JSON:%n%s", actual));

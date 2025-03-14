@@ -17,6 +17,8 @@ public class ExternalAccessHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExternalAccessHandler.class);
 
+    private static ExternalServicesRequest robustClient = new ExternalServicesRequest();
+
     public static Map<String, Object> handle(Distribution distr, String kind, JsonObject conversion, Map<String, Object> requestParams) {
 
         List<ServiceParameter> distParams = distr.getParameters();
@@ -35,7 +37,7 @@ public class ExternalAccessHandler {
             case "DOWNLOADABLE_FILE" :
                 try {
                     String compiledUrl = URLGeneration.ogcWFSChecker(distr.getServiceEndpoint());
-                    return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+                    return robustClient.getRedirect(compiledUrl);
                 } catch (Exception ex) {
                     LOGGER.error(ex.toString());
                     return null;
@@ -100,7 +102,7 @@ public class ExternalAccessHandler {
                     if(conversion==null) {
                         LOGGER.debug("Is native GeoJSON or CovJSON");
                         try {
-                            String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+                            String responsePayload = robustClient.getResponseBody(compiledUrl);
                             if(responsePayload!=null) responseMap.put("content", responsePayload.isEmpty() ? "{}" : responsePayload);
                             else {
                                 responseMap = new HashMap<>();
@@ -127,9 +129,8 @@ public class ExternalAccessHandler {
                             if (conversion.has("requestContentType")) {
                                 parametersMap.put("requestContentType", conversion.get("requestContentType").getAsString());
                             } else {
-                                ExternalServicesRequest extReq = ExternalServicesRequest.getInstance();
                                 try {
-                                    String contentType = extReq.getContentType(compiledUrl);
+                                    String contentType = robustClient.getContentType(compiledUrl);
                                     parametersMap.put("requestContentType", contentType);
                                 } catch (IOException e) {
                                     LOGGER.debug("Error getting service response's content type");
@@ -138,7 +139,7 @@ public class ExternalAccessHandler {
                             }
                             parametersMap.put("responseContentType", conversion.has("responseContentType") ? conversion.get("responseContentType").getAsString() : null);					//parametersMap.put("responseContentType", conversion.get("responseContentType").getAsString());
                             responseMap.put("parameters", parametersMap);
-                            String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+                            String responsePayload = robustClient.getResponseBody(compiledUrl);
                             responseMap.put("content", responsePayload.length()==0? "{}" : responsePayload);
 
                             return responseMap;
@@ -152,7 +153,7 @@ public class ExternalAccessHandler {
                 } else  {
                     LOGGER.debug("Redirect");
                     try {
-                        return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+                        return robustClient.getRedirect(compiledUrl);
                     } catch (Exception ex) {
                         LOGGER.error("Issue raised "+ex.toString()+" sending back a 503 message");
                         responseMap.put("httpStatusCode", "503");

@@ -1,7 +1,6 @@
 package org.epos.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
@@ -14,7 +13,7 @@ import org.epos.api.beans.Distribution;
 import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
 import org.epos.core.ExecuteItemGenerationJPA;
-import org.epos.core.ExternalServicesRequest;
+import org.epos.core.ExternalServicesRequestOLD;
 import org.epos.core.PluginGeneration;
 import org.epos.router_framework.domain.Actor;
 import org.epos.router_framework.domain.BuiltInActorType;
@@ -100,11 +99,11 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 
 		Map<String, List<String>> headers = new HashMap<String, List<String>>();
 		try {
-			headers = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
+			headers = ExternalServicesRequestOLD.getInstance().requestHeaders(compiledUrl);
 		} catch (IOException e1) {
 			LOGGER.error("Error on retrieving headers: "+e1.getLocalizedMessage());
 			try {
-				headers = ExternalServicesRequest.getInstance().requestHeadersUsingHttpsURLConnection(compiledUrl);
+				headers = ExternalServicesRequestOLD.getInstance().requestHeadersUsingHttpsURLConnection(compiledUrl);
 			} catch (IOException e2) {
 				LOGGER.error("Error on retrieving headers: "+e2.getLocalizedMessage());
 			}
@@ -128,11 +127,11 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				responseMap.put("parameters", parametersMap);
 				String responsePayload = "{}";
 				try {
-					responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+					responsePayload = ExternalServicesRequestOLD.getInstance().requestPayload(compiledUrl);
 				}catch(IOException e) {
 					LOGGER.error("Error on retrieving payload: "+e.getLocalizedMessage());
 					try {
-						responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+						responsePayload = ExternalServicesRequestOLD.getInstance().requestPayload(compiledUrl);
 					} catch (IOException e1) {
 						LOGGER.error("Error on retrieving payload: "+e1.getLocalizedMessage());
 					}
@@ -156,7 +155,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			if(compiledUrl.contains("GetFeatureInfo") && conversion==null){
 				LOGGER.debug("Redirect GetFeatureInfo");
 
-				Map<String,Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+				Map<String,Object> handlerResponse = ExternalServicesRequestOLD.getInstance().getRedirect(compiledUrl);
 
 				int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
 				HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
@@ -187,7 +186,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 				httpHeaders = new HttpHeaders();
 				
 				httpHeaders.add("Location", compiledUrl);
-				httpHeaders.add("content-type", ExternalServicesRequest.getInstance().getContentType(compiledUrl));
+				httpHeaders.add("content-type", ExternalServicesRequestOLD.getInstance().getContentType(compiledUrl));
 				LOGGER.info("Http headers: "+httpHeaders.toString());
 				LOGGER.info("Compiled URL: "+compiledUrl.toString());
 				return ResponseEntity.status(HttpStatus.FOUND)
@@ -282,7 +281,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 */
 			return ResponseEntity.status(HttpStatus.OK)
 					.headers(httpHeaders)
-					.body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
+					.body(ExternalServicesRequestOLD.getInstance().requestPayload(compiledUrl));
 		} catch (IOException e) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
 					.headers(httpHeaders).build();

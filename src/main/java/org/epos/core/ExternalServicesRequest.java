@@ -1,382 +1,285 @@
 package org.epos.core;
 
+import okhttp3.*;
 
-import java.io.*;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.security.*;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.*;
-
-import okhttp3.*;
-import org.epos.core.dns.DnsTimingEventListener;
-import org.epos.core.dns.RobustDns;
-import org.epos.core.ssl.CustomSSLSocketFactory;
-import org.epos.core.ssl.LenientX509TrustManager;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-
 public class ExternalServicesRequest {
+    private final OkHttpClient client;
+    private final int MAX_RETRIES = 3;
+    private final int CONNECTION_TIMEOUT = 30; // seconds
+    private final int READ_TIMEOUT = 30; // seconds
+    private final int WRITE_TIMEOUT = 30; // seconds
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(ExternalServicesRequest.class);
+    public ExternalServicesRequest() {
+        // Configure DNS resolver with fallback mechanisms
+        Dns robustDns = new RobustDns();
 
-	private static final int MAX_RETRIES = 3; // Number of retries
-	private static final long RETRY_DELAY_MS = 2000; // 2 seconds retry delay
-
-	private static ExternalServicesRequest instance = null;
-
-	//final OkHttpClient client = new OkHttpClient();
-	static OkHttpClient.Builder builder;
-	static SSLContext sslContext = null;
-
-
-	public static ExternalServicesRequest getInstance() {
-		if (instance == null) {
-			instance = new ExternalServicesRequest();
-			builder = new OkHttpClient.Builder().readTimeout(30, TimeUnit.SECONDS).connectTimeout(10, TimeUnit.SECONDS);
-			sslContext = getLenientSSLContext();
-
-			try {
-				builder.sslSocketFactory(new CustomSSLSocketFactory(), defaultTrustManager());
-			} catch (IOException e) {
-				LOGGER.error(e.getLocalizedMessage());
-				builder.sslSocketFactory(sslContext.getSocketFactory(), defaultTrustManager());
-			}
-			builder.hostnameVerifier(new HostnameVerifier() {
-				@Override
-				public boolean verify(String hostname, SSLSession session) {
-					return true;
-				}
-			});
-			builder.callTimeout(30, TimeUnit.SECONDS);
-
-			//String clusterDNS = getClusterDNS();
-			//if (clusterDNS == null) {
-			//	LOGGER.error("Failed to detect Kubernetes Cluster DNS");
-			//}
-			builder.eventListenerFactory(call -> new DnsTimingEventListener());
-			/*builder.dns(hostname -> {
-				LOGGER.info("Detected Kubernetes Cluster DNS: " + hostname);
-				LOGGER.info("DNSLOOKUP: "+Dns.SYSTEM.lookup(hostname).toString());
-				return Dns.SYSTEM.lookup(hostname);
-
-			});*/
-			builder.dns(new RobustDns());
-			builder.retryOnConnectionFailure(true);
-		}
-		return instance;
-	}
-
-	public static String getClusterDNS() {
-		try (BufferedReader reader = new BufferedReader(new FileReader("/etc/resolv.conf"))) {
-			String line;
-			while ((line = reader.readLine()) != null) {
-				if (line.startsWith("nameserver")) {
-					LOGGER.info("NAMESERVER FROM /etc/resolv.conf: " + line.split(" ")[1].trim());
-					return line.split(" ")[1].trim();
-				}
-			}
-		} catch (IOException e) {
-			LOGGER.error("FAILED TO READ /etc/resolv.conf: " + e.getMessage());
-		}
-		return null;
-	}
-
-	public Request generateRequest(String urlString){
-		return new Request.Builder()
-				.url(urlString)
-				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
-				.addHeader("Accept", "application/json, text/plain, */*")
-				.addHeader("Accept-Language", "en-US,en;q=0.9")
-				.addHeader("Connection", "keep-alive")
-				.addHeader("Host", getHostFromUrl(urlString)) // Extracts Host dynamically
-				.build();
+        // Build the OkHttp client with our custom configurations
+        client = new OkHttpClient.Builder()
+                .connectTimeout(CONNECTION_TIMEOUT, TimeUnit.SECONDS)
+                .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
+                .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
+                .dns(robustDns)
+                .addInterceptor(new RetryInterceptor(MAX_RETRIES))
+                .build();
     }
 
-	public Request generateRequestHead(String urlString){
-		return new Request.Builder()
-				.url(urlString)
-				.head()
-				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
-				.addHeader("Accept", "application/json, text/plain, */*")
-				.addHeader("Accept-Language", "en-US,en;q=0.9")
-				.addHeader("Connection", "keep-alive")
-				.addHeader("Host", getHostFromUrl(urlString)) // Extracts Host dynamically
-				.build();
-	}
+    /**
+     * Executes a GET request to the provided URL and returns the response body as a string
+     */
+    public String getResponseBody(String url) throws IOException {
+        Request request = new Request.Builder()
+                .url(url)
+                .build();
 
-	public Request generateRequestResolvingHost(String urlString) throws MalformedURLException {
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected response code: " + response);
+            }
 
-		URL url = new URL(urlString);
-
-		String ip = resolveHostToIp(url.getHost());
-        String newUrl = null;
-        if (ip != null) {
-            newUrl = urlString.replace(url.getHost(), ip);
+            ResponseBody body = response.body();
+            return body != null ? body.string() : "";
         }
-
-        LOGGER.info("Resolved URL: " + newUrl);
-
-		return new Request.Builder()
-				.url(newUrl != null ? newUrl : urlString)
-				.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
-				.addHeader("Accept", "application/json, text/plain, */*")
-				.addHeader("Accept-Language", "en-US,en;q=0.9")
-				.addHeader("Connection", "keep-alive")
-				.addHeader("Host", getHostFromUrl(urlString)) // Extracts Host dynamically
-				.build();
-	}
-
-	private static String getHostFromUrl(String urlString) {
-		return urlString.replaceFirst("https://", "").split("/")[0];
-	}
-
-	public static String resolveHostToIp(String hostname) {
-		Request request = new Request.Builder()
-				.url("https://dns.google/resolve?name=" + hostname)
-				.build();
-
-		try (Response response = builder.build().newCall(request).execute()) {
-			if (response.body() != null) {
-				String body = response.body().string();
-				System.out.println(body);
-				JSONObject json = new JSONObject(body);
-				JSONArray answers = json.getJSONArray("Answer");
-				return answers.getJSONObject(0).getString("data");
-			}
-		} catch (IOException e) {
-            LOGGER.error(e.getLocalizedMessage());
-        }
-        return null;
-	}
-
-	public String requestPayload(String url) throws IOException {
-		LOGGER.info("Requesting payload for URL -> "+url);
-		Request request = generateRequest(url);
-		LOGGER.info(request.toString());
-
-		int attempts = 0;
-		while (attempts < MAX_RETRIES) {
-			try (Response response = builder.build().newCall(request).execute()) {
-				LOGGER.info("URL: " + url);
-				LOGGER.info("Response Code: " + response.code());
-				if (response.body() != null) {
-					LOGGER.info("Response Body: " + response.body());
-					return response.body().string();
-				}
-				return null;
-			} catch (IOException e) {
-				LOGGER.error("Request failed for: " + url + " -> " + e.getLocalizedMessage());
-				attempts++;
-				if (attempts < MAX_RETRIES) {
-					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
-					try {
-						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
-					} catch (InterruptedException ignored) {
-						LOGGER.error(ignored.getLocalizedMessage());
-					}
-				} else {
-					LOGGER.info("Max retries reached. Request failed for: " + url);
-				}
-			}
-		}
-
-		//LAST ATTEMPT RESOLVING IP FROM HOST
-		request = generateRequestResolvingHost(url);
-		attempts = 0;
-		while (attempts < MAX_RETRIES) {
-			try (Response response = builder.build().newCall(request).execute()) {
-				LOGGER.info("URL: " + url);
-				LOGGER.info("Response Code: " + response.code());
-				if (response.body() != null) {
-					LOGGER.info("Response Body: " + response.body());
-					return response.body().string();
-				}
-				return null;
-			} catch (IOException e) {
-				LOGGER.error("Request failed for: " + url + " -> " + e.getLocalizedMessage());
-				attempts++;
-				if (attempts < MAX_RETRIES) {
-					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
-					try {
-						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
-					} catch (InterruptedException ignored) {
-						LOGGER.error(ignored.getLocalizedMessage());
-					}
-				} else {
-					LOGGER.info("Max retries reached. Request failed for: " + url);
-				}
-			}
-		}
-        return null;
     }
 
-	public Map<String, List<String>> requestHeaders(String url) throws IOException {
-		LOGGER.info("Requesting headers for URL -> "+url);
-		Request request = generateRequest(url);
-		LOGGER.info(request.toString());
+    /**
+     * Gets the headers from a URL
+     */
+    public Headers getHeaders(String url) throws IOException {
+        Request request = new Request.Builder()
+                .url(url)
+                .head() // HEAD request only gets headers
+                .build();
 
-		int attempts = 0;
-		while (attempts < MAX_RETRIES) {
-			try (Response response = builder.build().newCall(request).execute()) {
-				LOGGER.info("URL: " + url);
-				LOGGER.info("Response Code: " + response.code());
-				if (response.body() != null) {
-					LOGGER.info("Response Body: " + response.headers().toMultimap());
-					return response.headers().toMultimap();
-				}
-				return null;
-			} catch (IOException e) {
-				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
-				attempts++;
-				if (attempts < MAX_RETRIES) {
-					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
-					try {
-						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
-					} catch (InterruptedException ignored) {
-						LOGGER.error(ignored.getLocalizedMessage());
-					}
-				} else {
-					LOGGER.info("Max retries reached. Request failed for: " + url);
-				}
-			}
-		}
-		return null;
-	}
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected response code: " + response);
+            }
 
-	public Map<String, List<String>> requestHeadersUsingHttpsURLConnection(String url) throws IOException {
-		LOGGER.info("Requesting headers for URL -> " + url);
-		URL requestUrl = new URL(url);
-		HttpsURLConnection connection = (HttpsURLConnection) requestUrl.openConnection();
+            return response.headers();
+        }
+    }
 
-		connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36");
-		connection.setRequestProperty("Accept", "application/json, text/plain, */*");
-		connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
-		connection.setRequestProperty("Connection", "keep-alive");
-		connection.setRequestProperty("Host", getHostFromUrl(url)); // Extracts Host dynamically
-		LOGGER.info(connection.toString());
+    /**
+     * Gets the content type from a URL
+     */
+    public String getContentType(String url) throws IOException {
+        Headers headers = getHeaders(url);
+        return headers.get("Content-Type");
+    }
 
-		try {
-			return connection.getHeaderFields();
-		} finally {
-			connection.disconnect();
-		}
-	}
+    /**
+     * Retrieves both the content type and HTTP response code in a single request
+     * @return A Response object containing both HTTP code and headers
+     */
+    public Response getResponseMetadata(String url) throws IOException {
+        Request request = new Request.Builder()
+                .url(url)
+                .head() // HEAD request to avoid downloading the body
+                .build();
 
-	public String getContentType(String url) throws IOException {
-		LOGGER.info("Requesting content type for URL -> "+url);
-		Request request = generateRequestHead(url);
-		LOGGER.info(request.toString());
+        return client.newCall(request).execute();
+        // Note: The caller is responsible for closing this response
+    }
 
-		int attempts = 0;
-		while (attempts < MAX_RETRIES) {
-			try (Response response = builder.build().newCall(request).execute()) {
-				LOGGER.info("URL: " + url);
-				LOGGER.info("Response Code: " + response.code());
-				if (response.body() != null) {
-					LOGGER.info("Response Body: " + response.body().contentType().toString());
-					return response.body().contentType().toString();
-				}
-				return null;
-			} catch (IOException e) {
-				LOGGER.error("Request failed for: " + url + " -> " + e.getMessage());
-				attempts++;
-				if (attempts < MAX_RETRIES) {
-					LOGGER.info("Retrying in " + RETRY_DELAY_MS / 1000 + " seconds...");
-					try {
-						TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
-					} catch (InterruptedException ignored) {
-						LOGGER.error(ignored.getLocalizedMessage());
-					}
-				} else {
-					LOGGER.info("Max retries reached. Request failed for: " + url);
-				}
-			}
-		}
-		return null;
-	}
+    public Map<String, Object> getRedirect(String url) throws IOException {
+        Response response = getResponseMetadata(url);
 
-	public Map<String, Object> getRedirect(String url) throws IOException {
-		LOGGER.info("Requesting redirect for URL -> "+url);
-		Request request = generateRequest(url);
+        Map<String, Object> responseMap = new HashMap<>();
+        String contentType = response.headers().get("Content-Type");
+        String httpStatusCode = String.valueOf(response.code());
 
-		try (Response response = builder.build().newCall(request).execute()) {
-			LOGGER.info("Response: "+response);
+        responseMap.put("content-type", contentType);
+        responseMap.put("httpStatusCode", httpStatusCode);
+        responseMap.put("redirect-url", url);
+        return responseMap;
+    }
 
-			Map<String, Object> responseMap = new HashMap<>();
-			String contentType = response.body().contentType().toString();
-			String httpStatusCode = Integer.toString(response.code());
+    /**
+     * Execute a general request with the robust client
+     */
+    public Response executeRequest(Request request) throws IOException {
+        return client.newCall(request).execute();
+    }
 
-			responseMap.put("content-type", contentType);
-			responseMap.put("httpStatusCode", httpStatusCode);
-			responseMap.put("redirect-url", url);
-			return responseMap;
-		} catch(SSLPeerUnverifiedException e) {
-			LOGGER.error("Error on requesting redirect for URL: "+url+" cause: "+e.getLocalizedMessage());
-			request = generateRequest(url.replace("https://", "https://www."));
-			try (Response response = builder.build().newCall(request).execute()) {
-				Map<String, Object> responseMap = new HashMap<>();
-				String contentType = response.body().contentType().toString();
-				String httpStatusCode = Integer.toString(response.code());
+    /**
+     * Custom DNS resolver that implements fallback mechanisms
+     */
+    private static class RobustDns implements Dns {
+        private final Dns systemDns = Dns.SYSTEM;
+        private final OkHttpDnsCache dnsCache = new OkHttpDnsCache();
 
-				responseMap.put("content-type", contentType);
-				responseMap.put("httpStatusCode", httpStatusCode);
-				responseMap.put("redirect-url", url);
-				return responseMap;
-			}
-		}
-	}
+        @Override
+        public List<InetAddress> lookup(String hostname) throws UnknownHostException {
+            // First try: Check cache
+            List<InetAddress> cachedAddresses = dnsCache.get(hostname);
+            if (cachedAddresses != null && !cachedAddresses.isEmpty()) {
+                return cachedAddresses;
+            }
 
-	/*
-	 * SSL Context
-	 */
+            // Second try: System DNS
+            try {
+                List<InetAddress> addresses = systemDns.lookup(hostname);
+                if (!addresses.isEmpty()) {
+                    dnsCache.put(hostname, addresses);
+                    return addresses;
+                }
+            } catch (UnknownHostException e) {
+                // System DNS failed, continue to fallbacks
+            }
 
-	private static SSLContext getLenientSSLContext()
-	{
-		X509TrustManager[] trustManagers = LenientX509TrustManager.wrap(defaultTrustManager());
-		SSLContext sslContext = null;
-		try {
-			sslContext = SSLContext.getInstance("TLSv1.2");
-			sslContext.init(null, trustManagers, new SecureRandom());
-			//sslContext.getDefaultSSLParameters().setServerNames(new ArrayList<SNIServerName>());
+            // Third try: Check if hostname is already an IP address
+            try {
+                InetAddress ipAddress = InetAddress.getByName(hostname);
+                if (ipAddress.getHostAddress().equals(hostname)) {
+                    return Collections.singletonList(ipAddress);
+                }
+            } catch (UnknownHostException e) {
+                // Not an IP address, continue to alternative DNS
+            }
 
-		} catch (NoSuchAlgorithmException | KeyManagementException e) {
-			throw new IllegalStateException(String.format(
-					"Failed to obtain an SSL Context for TCS Service request. %s",
-					e.toString()));
-		}
-		return sslContext;
-	}
+            // Fourth try: Alternative DNS servers (Google DNS, Cloudflare DNS)
+            try {
+                List<InetAddress> addresses = lookupUsingAlternativeDns(hostname);
+                if (!addresses.isEmpty()) {
+                    dnsCache.put(hostname, addresses);
+                    return addresses;
+                }
+            } catch (Exception e) {
+                // Alternative DNS failed, continue
+            }
 
-	private static X509TrustManager defaultTrustManager()
-	{
-		TrustManager[] trustManagers = defaultTrustManagerFactory().getTrustManagers();
-		if (trustManagers.length != 1) {
-			throw new IllegalStateException("Unexpected default trust managers:"
-					+ Arrays.toString(trustManagers));
-		}
-		TrustManager trustManager = trustManagers[0];
-		if (trustManager instanceof X509TrustManager) {
-			return (X509TrustManager) trustManager;
-		}
-		throw new IllegalStateException("'" + trustManager + "' is not a X509TrustManager");
-	}
+            // All attempts failed, throw exception
+            throw new UnknownHostException("Unable to resolve host " + hostname);
+        }
 
+        /**
+         * Uses alternative DNS servers directly via Java's InetAddress
+         * Note: This is simplified and doesn't actually query Google/Cloudflare DNS
+         * For a real implementation, consider using dnsjava library
+         */
+        private List<InetAddress> lookupUsingAlternativeDns(String hostname) {
+            List<InetAddress> results = new ArrayList<>();
 
-	private static TrustManagerFactory defaultTrustManagerFactory()
-	{
-		try {
-			TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-			tmf.init((KeyStore) null);
-			return tmf;
-		} catch (NoSuchAlgorithmException | KeyStoreException e) {
-			throw new IllegalStateException("Can't load default trust manager", e);
-		}
-	}
+            // Using just InetAddress.getAllByName as a fallback
+            // In a real implementation, you would specifically query alternative DNS servers
+            try {
+                InetAddress[] addresses = InetAddress.getAllByName(hostname);
+                results.addAll(Arrays.asList(addresses));
+            } catch (UnknownHostException e) {
+                // Alternative lookup failed
+            }
 
+            return results;
+        }
+    }
+
+    /**
+     * Simple DNS cache implementation
+     */
+    private static class OkHttpDnsCache {
+        // In a production system, use a more sophisticated cache with TTL and eviction
+        private final java.util.Map<String, List<InetAddress>> cache =
+                Collections.synchronizedMap(new java.util.HashMap<>());
+
+        public List<InetAddress> get(String hostname) {
+            return cache.get(hostname);
+        }
+
+        public void put(String hostname, List<InetAddress> addresses) {
+            cache.put(hostname, addresses);
+        }
+    }
+
+    /**
+     * Interceptor for automatic retries on transient network failures
+     */
+    private static class RetryInterceptor implements Interceptor {
+        private final int maxRetries;
+
+        public RetryInterceptor(int maxRetries) {
+            this.maxRetries = maxRetries;
+        }
+
+        @Override
+        public Response intercept(Chain chain) throws IOException {
+            Request request = chain.request();
+            IOException lastException = null;
+
+            for (int attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    // Add exponential backoff between retries
+                    if (attempt > 0) {
+                        try {
+                            long backoffMillis = (long) Math.pow(2, attempt) * 1000;
+                            Thread.sleep(backoffMillis);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("Retry interrupted", e);
+                        }
+                    }
+
+                    return chain.proceed(request);
+                } catch (IOException e) {
+                    // Only retry on specific exceptions that might be transient
+                    if (isRetryableError(e)) {
+                        lastException = e;
+
+                        // If we've exhausted retries, throw the last exception
+                        if (attempt == maxRetries - 1) {
+                            throw lastException;
+                        }
+                    } else {
+                        // Non-retryable exception, just throw
+                        throw e;
+                    }
+                }
+            }
+
+            // Should never reach here, but just in case
+            throw new IOException("Unknown error after retry attempts");
+        }
+
+        private boolean isRetryableError(IOException e) {
+            // Define which exceptions are considered retryable
+            // Examples include SocketTimeoutException, ConnectException
+            return e instanceof java.net.SocketTimeoutException ||
+                    e instanceof java.net.ConnectException ||
+                    e instanceof java.net.UnknownHostException ||
+                    e.getMessage() != null && e.getMessage().contains("connection");
+        }
+    }
+
+    // Example usage
+    public static void main(String[] args) {
+        ExternalServicesRequest robustClient = new ExternalServicesRequest();
+
+        try {
+            String url = "https://gifswebapi.bgs.ac.uk/wdc/global-survey/data/";
+
+            // Get response body
+            String body = robustClient.getResponseBody(url);
+            System.out.println("Response body length: " + body.length());
+
+            // Get content type
+            String contentType = robustClient.getContentType(url);
+            System.out.println("Content-Type: " + contentType);
+
+            // Get all headers
+            Headers headers = robustClient.getHeaders(url);
+            System.out.println("\nAll Headers:");
+            for (String name : headers.names()) {
+                System.out.println(name + ": " + headers.get(name));
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

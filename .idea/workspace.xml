@@ -5,11 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3ee68450-c4ea-4710-85ba-83fed1f1a221" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/main/java/org/epos/core/dns/RobustDns.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/epos/core/ExternalServicesRequestOLD.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/api/ExecuteOGCApiController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/epos/api/ExecuteOGCApiController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/core/ExternalAccessHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/epos/core/ExternalAccessHandler.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/core/ExternalServicesRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/epos/core/ExternalServicesRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/core/dns/CustomDns.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/core/dns/ReverseApiDns.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/epos/core/dns/DnsTimingEventListener.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/org/epos_ip/tcsconnector/core/RequestInvokerTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/epos_ip/tcsconnector/core/RequestInvokerTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/org/epos_ip/tcsconnector/core/RequestTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/epos_ip/tcsconnector/core/RequestTest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -90,6 +93,19 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration name="ExternalServicesRequestOLD" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="org.epos.core.ExternalServicesRequestOLD" />
+      <module name="external-access-service" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="org.epos.core.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Swagger2SpringBoot" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
       <module name="external-access-service" />
       <option name="SPRING_BOOT_MAIN_CLASS" value="org.epos.Swagger2SpringBoot" />
@@ -100,6 +116,7 @@
     <recent_temporary>
       <list>
         <item itemvalue="Application.ExternalServicesRequest" />
+        <item itemvalue="Application.ExternalServicesRequestOLD" />
       </list>
     </recent_temporary>
   </component>
@@ -137,7 +154,7 @@
       <workItem from="1741361564423" duration="820000" />
       <workItem from="1741553886135" duration="4905000" />
       <workItem from="1741597621487" duration="26000" />
-      <workItem from="1741856785740" duration="25787000" />
+      <workItem from="1741856785740" duration="28457000" />
     </task>
     <servers />
   </component>
