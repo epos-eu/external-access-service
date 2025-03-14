@@ -6,11 +6,14 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class ExternalServicesRequest {
@@ -38,6 +41,14 @@ public class ExternalServicesRequest {
     // Environment variable prefix for IP mappings
     private static final String ENV_PREFIX = "SERVICE_IP_";
 
+    // External DNS resolvers - order matters (tried in sequence)
+    private static final String[] EXTERNAL_DNS_SERVICES = {
+            "https://dns.google/resolve?name=%s&type=A",       // Google DNS
+            "https://cloudflare-dns.com/dns-query?name=%s&type=A", // Cloudflare DNS
+            "https://1.1.1.1/dns-query?name=%s&type=A",        // Cloudflare alternate
+            "https://8.8.8.8/resolve?name=%s&type=A"           // Google DNS alternate
+    };
+
     /**
      * Default constructor with a 1-hour cache TTL
      */
@@ -60,14 +71,14 @@ public class ExternalServicesRequest {
         loadMappingsFromProperties();
 
         // Configure DNS resolver with automatic IP resolution
-        AutoIpDns autoIpDns = new AutoIpDns(hostToIpMap, ipCache, ipCacheTtlMs);
+        AdvancedDnsResolver advancedDns = new AdvancedDnsResolver(hostToIpMap, ipCache, ipCacheTtlMs);
 
         // Build the OkHttp client with our custom configurations
         client = new OkHttpClient.Builder()
                 .connectTimeout(CONNECTION_TIMEOUT, TimeUnit.SECONDS)
                 .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
                 .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
-                .dns(autoIpDns)
+                .dns(advancedDns)
                 .addInterceptor(new RetryInterceptor(MAX_RETRIES))
                 .build();
     }
@@ -176,13 +187,16 @@ public class ExternalServicesRequest {
     }
 
     /**
-     * Executes a GET request to the provided URL with automatic IP resolution
+     * Executes a GET request to the provided URL with automatic IP resolution and extensive fallbacks
      */
     public String getResponseBodyWithFallback(String url) {
         String result = "";
         List<String> errors = new ArrayList<>();
 
         try {
+            // Extract hostname for potential special handling
+            String hostname = new java.net.URL(url).getHost();
+
             // First try with normal flow (will use our custom DNS resolver)
             result = getResponseBody(url);
             return result;
@@ -190,6 +204,9 @@ public class ExternalServicesRequest {
             errors.add("Primary attempt failed: " + e.getMessage());
 
             try {
+                // Extract hostname for fallback methods
+                String hostname = new java.net.URL(url).getHost();
+
                 // Try again with connection close header
                 Request request = new Request.Builder()
                         .url(url)
@@ -208,31 +225,50 @@ public class ExternalServicesRequest {
                 errors.add("Retry with connection close failed: " + retryEx.getMessage());
             }
 
-            // Try to resolve and cache IP if it's a DNS issue
+            // Last resort: Try advanced external resolution methods
             try {
                 String hostname = new java.net.URL(url).getHost();
-                String resolvedIp = resolveHostnameDirectly(hostname);
+
+                // Try to resolve using external DNS services if not already resolved
+                String resolvedIp = resolveUsingExternalDns(hostname);
 
                 if (resolvedIp != null) {
                     // Cache this resolution for future use
                     ipCache.put(hostname, new IpMappingEntry(resolvedIp, System.currentTimeMillis() + ipCacheTtlMs));
 
-                    // Try again with the resolved IP
-                    Request request = new Request.Builder()
-                            .url(url)
-                            .build();
+                    // Try manual HTTP connection with the resolved IP
+                    try {
+                        // Create a modified URL with the IP instead of hostname
+                        URL originalUrl = new URL(url);
+                        URL ipUrl = new URL(originalUrl.getProtocol(), resolvedIp,
+                                originalUrl.getPort(), originalUrl.getFile());
 
-                    try (Response response = client.newCall(request).execute()) {
-                        if (!response.isSuccessful()) {
-                            throw new IOException("Unexpected response code: " + response);
+                        HttpURLConnection conn = (HttpURLConnection) ipUrl.openConnection();
+                        conn.setRequestProperty("Host", hostname); // Set original hostname for SNI
+                        conn.setConnectTimeout(CONNECTION_TIMEOUT * 1000);
+                        conn.setReadTimeout(READ_TIMEOUT * 1000);
+
+                        int responseCode = conn.getResponseCode();
+                        if (responseCode >= 200 && responseCode < 300) {
+                            // Read the response
+                            java.io.InputStream in = conn.getInputStream();
+                            java.util.Scanner s = new java.util.Scanner(in).useDelimiter("\\A");
+                            String response = s.hasNext() ? s.next() : "";
+
+                            // Store the IP mapping for future use
+                            hostToIpMap.put(hostname, resolvedIp);
+                            LOGGER.info("Successfully connected to " + hostname + " using IP " + resolvedIp);
+
+                            return response;
+                        } else {
+                            throw new IOException("Unexpected response code: " + responseCode);
                         }
-
-                        ResponseBody body = response.body();
-                        return body != null ? body.string() : "";
+                    } catch (Exception connEx) {
+                        errors.add("Manual connection with resolved IP failed: " + connEx.getMessage());
                     }
                 }
             } catch (Exception urlEx) {
-                errors.add("IP fallback failed: " + urlEx.getMessage());
+                errors.add("Advanced resolution failed: " + urlEx.getMessage());
             }
         }
 
@@ -241,17 +277,204 @@ public class ExternalServicesRequest {
     }
 
     /**
-     * Attempt to resolve a hostname directly using system DNS
+     * Resolve a hostname using external DNS services
+     * This is a fallback when all other methods fail
      */
-    private String resolveHostnameDirectly(String hostname) {
+    private String resolveUsingExternalDns(String hostname) {
+        // First try system DNS - most reliable
         try {
             InetAddress[] addresses = InetAddress.getAllByName(hostname);
             if (addresses.length > 0) {
                 return addresses[0].getHostAddress();
             }
-        } catch (Exception e) {
-            // DNS resolution failed
+        } catch (UnknownHostException e) {
+            // Continue to external services
+            LOGGER.info("System DNS failed for " + hostname + ", trying external services");
         }
+
+        // Try public DNS over HTTPS services
+        for (String dnsServiceUrl : EXTERNAL_DNS_SERVICES) {
+            try {
+                String resolvedIp = queryPublicDnsApi(String.format(dnsServiceUrl, hostname));
+                if (resolvedIp != null) {
+                    LOGGER.info("Resolved " + hostname + " to " + resolvedIp + " using external DNS");
+                    return resolvedIp;
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.FINE, "External DNS query failed: " + e.getMessage(), e);
+                // Continue to next service
+            }
+        }
+
+        // Try public DNS lookup APIs (these are more likely to work in restricted environments)
+        try {
+            String resolvedIp = queryDnsApi("https://dns.google.com/resolve?name=" + hostname + "&type=A");
+            if (resolvedIp != null) return resolvedIp;
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Google DNS API failed", e);
+        }
+
+        try {
+            String resolvedIp = queryDnsApi("https://cloudflare-dns.com/dns-query?name=" + hostname + "&type=A");
+            if (resolvedIp != null) return resolvedIp;
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Cloudflare DNS API failed", e);
+        }
+
+        // Try manual ping (works in some environments)
+        try {
+            Process process = Runtime.getRuntime().exec("ping -c 1 " + hostname);
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.contains("(") && line.contains(")")) {
+                    int start = line.indexOf("(") + 1;
+                    int end = line.indexOf(")", start);
+                    if (end > start) {
+                        String ip = line.substring(start, end);
+                        if (isValidIpAddress(ip)) {
+                            LOGGER.info("Resolved " + hostname + " to " + ip + " using ping");
+                            return ip;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Ping resolution failed", e);
+        }
+
+        // Try nslookup if available
+        try {
+            Process process = Runtime.getRuntime().exec("nslookup " + hostname);
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.contains("Address:") || line.contains("Address: ")) {
+                    String[] parts = line.split(":\\s*");
+                    if (parts.length >= 2) {
+                        String ip = parts[1].trim();
+                        if (isValidIpAddress(ip)) {
+                            LOGGER.info("Resolved " + hostname + " to " + ip + " using nslookup");
+                            return ip;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "nslookup resolution failed", e);
+        }
+
+        // Try different public DNS resolvers via command line (useful on Linux systems)
+        String[] publicDnsServers = {"8.8.8.8", "1.1.1.1", "9.9.9.9", "208.67.222.222"};
+        for (String dnsServer : publicDnsServers) {
+            try {
+                Process process = Runtime.getRuntime().exec("dig @" + dnsServer + " " + hostname + " +short");
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(process.getInputStream()));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (isValidIpAddress(line)) {
+                        LOGGER.info("Resolved " + hostname + " to " + line + " using dig and " + dnsServer);
+                        return line;
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.FINE, "Dig resolution with " + dnsServer + " failed", e);
+            }
+        }
+
+        // No resolution found
+        return null;
+    }
+
+    /**
+     * Query a public DNS API for hostname resolution
+     */
+    private String queryPublicDnsApi(String apiUrl) throws IOException {
+        // Create a separate client just for DNS API queries
+        OkHttpClient dnsClient = new OkHttpClient.Builder()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.SECONDS)
+                .dns(Dns.SYSTEM) // Use system DNS for API queries
+                .build();
+
+        Request request = new Request.Builder()
+                .url(apiUrl)
+                .header("Accept", "application/dns-json")
+                .build();
+
+        try (Response response = dnsClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                return null;
+            }
+
+            ResponseBody body = response.body();
+            if (body == null) return null;
+
+            String responseText = body.string();
+
+            // Simple JSON parsing for IP extraction
+            if (responseText.contains("\"Answer\"")) {
+                // Extract the first IP address from the response
+                int dataIndex = responseText.indexOf("\"data\":\"");
+                if (dataIndex > 0) {
+                    int startIndex = dataIndex + 8;
+                    int endIndex = responseText.indexOf("\"", startIndex);
+                    if (endIndex > startIndex) {
+                        String ip = responseText.substring(startIndex, endIndex);
+                        if (isValidIpAddress(ip)) {
+                            return ip;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Query a DNS API for hostname resolution
+     */
+    private String queryDnsApi(String apiUrl) throws IOException {
+        URL url = new URL(apiUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("Accept", "application/dns-json");
+
+        if (conn.getResponseCode() != 200) {
+            return null;
+        }
+
+        java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(conn.getInputStream()));
+        StringBuilder response = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            response.append(line);
+        }
+        reader.close();
+
+        // Very simple JSON parsing for IP address
+        String responseText = response.toString();
+        if (responseText.contains("\"Answer\"")) {
+            // Extract the first IP address from the response
+            int dataIndex = responseText.indexOf("\"data\":\"");
+            if (dataIndex > 0) {
+                int startIndex = dataIndex + 8;
+                int endIndex = responseText.indexOf("\"", startIndex);
+                if (endIndex > startIndex) {
+                    String ip = responseText.substring(startIndex, endIndex);
+                    if (isValidIpAddress(ip)) {
+                        return ip;
+                    }
+                }
+            }
+        }
+
         return null;
     }
 
@@ -355,15 +578,15 @@ public class ExternalServicesRequest {
     }
 
     /**
-     * DNS resolver that automatically resolves and caches IPs
+     * Advanced DNS resolver with multiple fallback methods
      */
-    private static class AutoIpDns implements Dns {
+    private static class AdvancedDnsResolver implements Dns {
         private final Dns systemDns = Dns.SYSTEM;
         private final Map<String, String> hostToIpMap;
         private final Map<String, IpMappingEntry> ipCache;
         private final long ipCacheTtlMs;
 
-        public AutoIpDns(Map<String, String> hostToIpMap, Map<String, IpMappingEntry> ipCache, long ipCacheTtlMs) {
+        public AdvancedDnsResolver(Map<String, String> hostToIpMap, Map<String, IpMappingEntry> ipCache, long ipCacheTtlMs) {
             this.hostToIpMap = hostToIpMap;
             this.ipCache = ipCache;
             this.ipCacheTtlMs = ipCacheTtlMs;
@@ -375,6 +598,7 @@ public class ExternalServicesRequest {
             String staticIp = hostToIpMap.get(hostname);
             if (staticIp != null) {
                 try {
+                    LOGGER.fine("Using static IP mapping for " + hostname + ": " + staticIp);
                     return Collections.singletonList(InetAddress.getByName(staticIp));
                 } catch (UnknownHostException e) {
                     LOGGER.warning("Invalid IP mapping for " + hostname + ": " + staticIp);
@@ -386,6 +610,7 @@ public class ExternalServicesRequest {
             IpMappingEntry cacheEntry = ipCache.get(hostname);
             if (cacheEntry != null && !cacheEntry.isExpired()) {
                 try {
+                    LOGGER.fine("Using cached IP for " + hostname + ": " + cacheEntry.getIpAddress());
                     return Collections.singletonList(InetAddress.getByName(cacheEntry.getIpAddress()));
                 } catch (UnknownHostException e) {
                     // Invalid cached entry, remove it
@@ -402,6 +627,7 @@ public class ExternalServicesRequest {
                 if (!addresses.isEmpty()) {
                     // Cache successful resolution
                     String resolvedIp = addresses.get(0).getHostAddress();
+                    LOGGER.fine("Resolved " + hostname + " to " + resolvedIp + " using system DNS");
                     ipCache.put(hostname, new IpMappingEntry(resolvedIp, System.currentTimeMillis() + ipCacheTtlMs));
                     return addresses;
                 }
@@ -418,6 +644,9 @@ public class ExternalServicesRequest {
             } catch (UnknownHostException e) {
                 // Not an IP address, continue
             }
+
+            // Log the resolution failure for visibility
+            LOGGER.info("Standard DNS resolution failed for " + hostname + ", falling back to external methods");
 
             // All attempts failed, throw exception
             throw new UnknownHostException("Unable to resolve host " + hostname);
