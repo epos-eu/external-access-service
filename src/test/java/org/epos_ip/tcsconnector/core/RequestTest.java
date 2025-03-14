@@ -2,8 +2,6 @@ package org.epos_ip.tcsconnector.core;
 
 import java.io.IOException;
 
-import org.epos.core.ExternalServicesRequestOLD;
-
 public class RequestTest {
 	
 	public static void main(String[] args) {

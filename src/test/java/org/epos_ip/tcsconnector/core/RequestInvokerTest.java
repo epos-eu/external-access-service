@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.epos.core.ExternalServicesRequestOLD;
 import org.json.JSONException;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
