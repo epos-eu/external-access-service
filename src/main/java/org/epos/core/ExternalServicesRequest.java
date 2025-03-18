@@ -7,10 +7,7 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.URL;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -93,7 +90,7 @@ public class ExternalServicesRequest {
         AdvancedDnsResolver advancedDns = new AdvancedDnsResolver(hostToIpMap, ipCache, ipCacheTtlMs);
 
         // Build the OkHttp client with our custom configurations
-        client = new OkHttpClient.Builder()
+        OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
                 .connectTimeout(CONNECTION_TIMEOUT, TimeUnit.SECONDS)
                 .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
                 .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
@@ -107,8 +104,26 @@ public class ExternalServicesRequest {
                     // For normal domain names, use standard verification
                     return HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session);
                 })
-                .addInterceptor(new RetryInterceptor(MAX_RETRIES))
-                .build();
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .addInterceptor(chain -> {
+                    Request originalRequest = chain.request();
+
+                    // Add headers that might help with proxies
+                    Request modifiedRequest = originalRequest.newBuilder()
+                            .header("Connection", "keep-alive")
+                            .header("Accept", "*/*")
+                            .header("User-Agent", "OkHttp/4.9.1")
+                            .build();
+
+                    return chain.proceed(modifiedRequest);
+                })
+                .addInterceptor(new RetryInterceptor(MAX_RETRIES));
+
+        clientBuilder = configureProxies(clientBuilder);
+
+        // Build the final client
+        client = clientBuilder.build();
     }
 
     /**
@@ -181,6 +196,205 @@ public class ExternalServicesRequest {
     }
 
     /**
+     * Configure the client to use system proxies or explicitly provided proxies
+     * This method should be called in the constructor after initializing other fields
+     */
+    private OkHttpClient.Builder configureProxies(OkHttpClient.Builder builder) {
+        // First, check for explicitly defined proxy settings
+        String proxyHost = System.getProperty("http.proxyHost");
+        String proxyPort = System.getProperty("http.proxyPort");
+        String proxyUser = System.getProperty("http.proxyUser");
+        String proxyPassword = System.getProperty("http.proxyPassword");
+
+        // Also check environment variables which are sometimes used
+        if (proxyHost == null) {
+            proxyHost = System.getenv("HTTP_PROXY");
+            if (proxyHost != null && proxyHost.startsWith("http://")) {
+                proxyHost = proxyHost.substring(7);
+                int colonIndex = proxyHost.indexOf(':');
+                if (colonIndex > 0) {
+                    proxyPort = proxyHost.substring(colonIndex + 1);
+                    proxyHost = proxyHost.substring(0, colonIndex);
+                }
+            }
+        }
+
+        if (proxyHost != null && !proxyHost.isEmpty()) {
+            int port = 8080; // Default proxy port
+            if (proxyPort != null && !proxyPort.isEmpty()) {
+                try {
+                    port = Integer.parseInt(proxyPort);
+                } catch (NumberFormatException e) {
+                    LOGGER.warning("Invalid proxy port: " + proxyPort + ", using default port 8080");
+                }
+            }
+
+            LOGGER.info("Configuring explicit proxy: " + proxyHost + ":" + port);
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, port));
+            builder = builder.proxy(proxy);
+
+            // Add proxy authentication if provided
+            if (proxyUser != null && !proxyUser.isEmpty() && proxyPassword != null) {
+                builder = builder.proxyAuthenticator((route, response) -> {
+                    String credential = Credentials.basic(proxyUser, proxyPassword);
+                    return response.request().newBuilder()
+                            .header("Proxy-Authorization", credential)
+                            .build();
+                });
+            }
+        } else {
+            // Use JVM's proxy selector for system-wide proxy settings
+            LOGGER.info("Using system proxy settings if available");
+            ProxySelector systemSelector = ProxySelector.getDefault();
+
+            builder = builder.proxySelector(new ProxySelector() {
+                @Override
+                public List<Proxy> select(URI uri) {
+                    // First try system selector
+                    List<Proxy> systemProxies = systemSelector.select(uri);
+
+                    // If no proxies or direct connection, return as is
+                    if (systemProxies == null || systemProxies.isEmpty() ||
+                            systemProxies.get(0).type() == Proxy.Type.DIRECT) {
+                        return systemProxies;
+                    }
+
+                    // Log what proxy is being used
+                    for (Proxy proxy : systemProxies) {
+                        if (proxy.type() != Proxy.Type.DIRECT) {
+                            LOGGER.info("Using system proxy: " + proxy + " for " + uri);
+                        }
+                    }
+
+                    return systemProxies;
+                }
+
+                @Override
+                public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
+                    systemSelector.connectFailed(uri, sa, ioe);
+                    LOGGER.warning("Proxy connection failed for " + uri + ": " + ioe.getMessage());
+                }
+            });
+        }
+
+        return builder;
+    }
+
+    /**
+     * Specialized method for making requests to services behind proxies or with complex configurations
+     *
+     * @param url The URL to request
+     * @return The response body as a string
+     * @throws IOException If an I/O error occurs
+     */
+    public String getResponseFromProxiedService(String url) throws IOException {
+        try {
+            LOGGER.info("Attempting specialized request for potentially proxied service: " + url);
+
+            // Parse the URL to get components
+            URL parsedUrl = new URL(url);
+            String hostname = parsedUrl.getHost();
+
+            // Try standard request first with extra headers
+            Request.Builder requestBuilder = new Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0 (compatible; ServiceClient/1.0)")
+                    .header("Accept", "*/*")
+                    .header("Accept-Encoding", "gzip, deflate")
+                    .header("Connection", "keep-alive")
+                    .header("Cache-Control", "no-cache");
+
+            // Add proxy-friendly headers if needed
+            if (url.contains("?")) {
+                // For GET with parameters, some proxies need explicit identification
+                requestBuilder.header("Pragma", "no-cache");
+            }
+
+            // Create a specialized client for this request with proxy settings
+            OkHttpClient specialClient = client.newBuilder()
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .build();
+
+            // Execute the request
+            try (Response response = specialClient.newCall(requestBuilder.build()).execute()) {
+                // Check for redirect before validating success
+                if (response.isRedirect()) {
+                    String newLocation = response.header("Location");
+                    LOGGER.info("Received redirect to: " + newLocation);
+                    if (newLocation != null) {
+                        // Handle relative redirects
+                        if (!newLocation.startsWith("http")) {
+                            if (newLocation.startsWith("/")) {
+                                // Absolute path
+                                newLocation = parsedUrl.getProtocol() + "://" + parsedUrl.getHost() +
+                                        (parsedUrl.getPort() > 0 ? ":" + parsedUrl.getPort() : "") +
+                                        newLocation;
+                            } else {
+                                // Relative path
+                                String path = parsedUrl.getPath();
+                                if (path.endsWith("/")) {
+                                    newLocation = path + newLocation;
+                                } else {
+                                    newLocation = path.substring(0, path.lastIndexOf('/') + 1) + newLocation;
+                                }
+                                newLocation = parsedUrl.getProtocol() + "://" + parsedUrl.getHost() +
+                                        (parsedUrl.getPort() > 0 ? ":" + parsedUrl.getPort() : "") +
+                                        newLocation;
+                            }
+                        }
+                        return getResponseFromProxiedService(newLocation);
+                    }
+                }
+
+                if (!response.isSuccessful()) {
+                    LOGGER.warning("Proxied service request failed with code: " + response.code());
+                    throw new IOException("Unexpected response code: " + response.code() + " for " + url);
+                }
+
+                ResponseBody body = response.body();
+                if (body == null) {
+                    return "";
+                }
+
+                // Handle potential encoding issues
+                MediaType contentType = body.contentType();
+                String charset = contentType != null && contentType.charset() != null ?
+                        contentType.charset().name() : "UTF-8";
+
+                String result = new String(body.bytes(), charset);
+                return result;
+            }
+        } catch (IOException e) {
+            LOGGER.warning("Proxied service request failed: " + e.getMessage());
+
+            // Try fallback methods
+            try {
+                URL parsedUrl = new URL(url);
+                String hostname = parsedUrl.getHost();
+
+                // Try to resolve IP directly
+                String ip = resolveUsingExternalDns(hostname);
+                if (ip != null) {
+                    LOGGER.info("Trying direct IP connection for proxied service: " + ip);
+
+                    String path = parsedUrl.getPath();
+                    if (parsedUrl.getQuery() != null && !parsedUrl.getQuery().isEmpty()) {
+                        path += "?" + parsedUrl.getQuery();
+                    }
+
+                    return getByIp(ip, hostname, path, "https".equals(parsedUrl.getProtocol()));
+                }
+            } catch (Exception fallbackEx) {
+                LOGGER.warning("Fallback attempt for proxied service failed: " + fallbackEx.getMessage());
+            }
+
+            // Re-throw the original exception if all fallbacks fail
+            throw e;
+        }
+    }
+
+    /**
      * Helper method to load properties from a specific path
      */
     private boolean loadPropertiesFromPath(Properties props, String path) {
@@ -213,9 +427,9 @@ public class ExternalServicesRequest {
             return false;
         }
     }
-
     /**
      * Executes a GET request to the provided URL with automatic IP resolution and extensive fallbacks
+     * including special handling for proxied services
      */
     public String getResponseBodyWithFallback(String url) {
         String result = "";
@@ -225,8 +439,15 @@ public class ExternalServicesRequest {
             // Extract hostname for potential special handling
             String hostname = new java.net.URL(url).getHost();
 
+            // First try the specialized proxied service method
+            try {
+                LOGGER.info("Trying specialized proxy-aware request for: " + url);
+                return getResponseFromProxiedService(url);
+            } catch (IOException proxyEx) {
+                errors.add("Proxy-aware attempt failed: " + proxyEx.getMessage());
+            }
+
             // Check if this is a problematic host that might need direct IP connection
-            // Instead of waiting for failure, try to pre-resolve the IP first
             if (isLikelyProblematicHost(hostname)) {
                 // Try to resolve the hostname using external methods first
                 String resolvedIp = resolveUsingExternalDns(hostname);
@@ -256,21 +477,16 @@ public class ExternalServicesRequest {
                 }
             }
 
-            // Standard attempt with normal flow (will use our custom DNS resolver)
+            // Standard attempt with normal flow
             try {
                 result = getResponseBody(url);
                 return result;
             } catch (IOException standardEx) {
                 errors.add("Standard attempt failed: " + standardEx.getMessage());
             }
-        } catch (IOException e) {
-            errors.add("URL parsing failed: " + e.getMessage());
 
+            // Try again with connection close header
             try {
-                // Extract hostname for fallback methods
-                String hostname = new java.net.URL(url).getHost();
-
-                // Try again with connection close header
                 Request request = new Request.Builder()
                         .url(url)
                         .header("Connection", "close") // Force connection close
@@ -290,9 +506,6 @@ public class ExternalServicesRequest {
 
             // Last resort: Try advanced external resolution methods
             try {
-                String hostname = new java.net.URL(url).getHost();
-
-                // Try to resolve using external DNS services if not already resolved
                 String resolvedIp = resolveUsingExternalDns(hostname);
 
                 if (resolvedIp != null && enableDirectIpConnections) {
@@ -353,12 +566,13 @@ public class ExternalServicesRequest {
             } catch (Exception urlEx) {
                 errors.add("Advanced resolution failed: " + urlEx.getMessage());
             }
+        } catch (IOException e) {
+            errors.add("URL parsing failed: " + e.getMessage());
         }
 
         // If all attempts failed, return error summary
         throw new RuntimeException("All attempts to access URL failed. Errors: " + String.join("; ", errors));
     }
-
     /**
      * Resolve a hostname using external DNS services
      * This is a fallback when all other methods fail
