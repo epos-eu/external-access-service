@@ -371,14 +371,6 @@ public class ExternalServicesRequest {
             return staticIp;
         }
 
-        // Try BGS-specific resolution for BGS domains
-//        if (hostname.endsWith("bgs.ac.uk")) {
-//            String bgsIp = resolveBgsSpecificDomain(hostname);
-//            if (bgsIp != null) {
-//                return bgsIp;
-//            }
-//        }
-
         // Try system DNS - most reliable
         try {
             InetAddress[] addresses = InetAddress.getAllByName(hostname);
@@ -390,10 +382,17 @@ public class ExternalServicesRequest {
             LOGGER.info("System DNS failed for " + hostname + ", trying external services");
         }
 
+        // Try our CNAME-aware resolution
+        String resolvedIp = resolveWithCnameSupport(hostname);
+        if (resolvedIp != null) {
+            LOGGER.info("Resolved " + hostname + " to " + resolvedIp + " using CNAME-aware resolution");
+            return resolvedIp;
+        }
+
         // Try public DNS over HTTPS services
         for (String dnsServiceUrl : EXTERNAL_DNS_SERVICES) {
             try {
-                String resolvedIp = queryPublicDnsApi(String.format(dnsServiceUrl, hostname));
+                resolvedIp = queryPublicDnsApi(String.format(dnsServiceUrl, hostname));
                 if (resolvedIp != null) {
                     LOGGER.info("Resolved " + hostname + " to " + resolvedIp + " using external DNS");
                     return resolvedIp;
@@ -406,14 +405,14 @@ public class ExternalServicesRequest {
 
         // Try public DNS lookup APIs (these are more likely to work in restricted environments)
         try {
-            String resolvedIp = queryDnsApi("https://dns.google.com/resolve?name=" + hostname + "&type=A");
+            resolvedIp = queryDnsApi("https://dns.google.com/resolve?name=" + hostname + "&type=A");
             if (resolvedIp != null) return resolvedIp;
         } catch (Exception e) {
             LOGGER.log(Level.FINE, "Google DNS API failed", e);
         }
 
         try {
-            String resolvedIp = queryDnsApi("https://cloudflare-dns.com/dns-query?name=" + hostname + "&type=A");
+            resolvedIp = queryDnsApi("https://cloudflare-dns.com/dns-query?name=" + hostname + "&type=A");
             if (resolvedIp != null) return resolvedIp;
         } catch (Exception e) {
             LOGGER.log(Level.FINE, "Cloudflare DNS API failed", e);
@@ -605,28 +604,86 @@ public class ExternalServicesRequest {
             ResponseBody body = response.body();
             if (body == null) return null;
 
-            String responseText = body.string();
+            // Return the full response text for detailed parsing
+            return body.string();
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Public DNS API query failed: " + e.getMessage(), e);
+            return null;
+        }
+    }
+    private String resolveWithCnameSupport(String hostname) {
+        String currentName = hostname;
+        Set<String> seenNames = new HashSet<>();
+        seenNames.add(currentName);
 
-            // Simple JSON parsing for IP extraction
-            if (responseText.contains("\"Answer\"")) {
-                // Extract the first IP address from the response
-                int dataIndex = responseText.indexOf("\"data\":\"");
-                if (dataIndex > 0) {
-                    int startIndex = dataIndex + 8;
-                    int endIndex = responseText.indexOf("\"", startIndex);
-                    if (endIndex > startIndex) {
-                        String ip = responseText.substring(startIndex, endIndex);
-                        if (isValidIpAddress(ip)) {
-                            return ip;
-                        }
-                    }
+        for (int i = 0; i < 5; i++) { // Limit to 5 redirections to prevent infinite loops
+            try {
+                String dnsResponse = queryDnsApi("https://dns.google.com/resolve?name=" + currentName + "&type=A");
+
+                // Parse for CNAME first
+                String cname = extractCnameTarget(dnsResponse);
+                if (cname != null && !seenNames.contains(cname)) {
+                    currentName = cname;
+                    seenNames.add(cname);
+                    continue;
                 }
+
+                // Look for A record
+                String ip = extractIpFromResponse(dnsResponse);
+                if (ip != null) {
+                    return ip;
+                }
+
+                // If we got here, we couldn't find a resolution path
+                break;
+            } catch (Exception e) {
+                LOGGER.log(Level.FINE, "DNS resolution failed", e);
+                break;
             }
         }
 
         return null;
     }
 
+    private String extractCnameTarget(String response) {
+        // Look for type 5 (CNAME) records
+        if (response.contains("\"type\":5")) {
+            int typeIndex = response.indexOf("\"type\":5");
+            int dataIndex = response.indexOf("\"data\":\"", typeIndex);
+            if (dataIndex > 0) {
+                int startIndex = dataIndex + 8;
+                int endIndex = response.indexOf("\"", startIndex);
+                if (endIndex > startIndex) {
+                    String cname = response.substring(startIndex, endIndex);
+                    // Remove trailing dot if present
+                    if (cname.endsWith(".")) {
+                        cname = cname.substring(0, cname.length() - 1);
+                    }
+                    return cname;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String extractIpFromResponse(String response) {
+        // Look for type 1 (A record)
+        if (response.contains("\"type\":1")) {
+            int typeIndex = response.indexOf("\"type\":1");
+            int dataIndex = response.indexOf("\"data\":\"", typeIndex);
+            if (dataIndex > 0) {
+                int startIndex = dataIndex + 8;
+                int endIndex = response.indexOf("\"", startIndex);
+                if (endIndex > startIndex) {
+                    String ip = response.substring(startIndex, endIndex);
+                    if (isValidIpAddress(ip)) {
+                        return ip;
+                    }
+                }
+            }
+        }
+        return null;
+    }
     /**
      * Query a DNS API for hostname resolution
      */
@@ -649,24 +706,7 @@ public class ExternalServicesRequest {
         }
         reader.close();
 
-        // Very simple JSON parsing for IP address
-        String responseText = response.toString();
-        if (responseText.contains("\"Answer\"")) {
-            // Extract the first IP address from the response
-            int dataIndex = responseText.indexOf("\"data\":\"");
-            if (dataIndex > 0) {
-                int startIndex = dataIndex + 8;
-                int endIndex = responseText.indexOf("\"", startIndex);
-                if (endIndex > startIndex) {
-                    String ip = responseText.substring(startIndex, endIndex);
-                    if (isValidIpAddress(ip)) {
-                        return ip;
-                    }
-                }
-            }
-        }
-
-        return null;
+        return response.toString();  // Return the full response for more detailed parsing
     }
 
     /**
