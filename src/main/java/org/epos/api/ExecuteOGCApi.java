@@ -47,7 +47,12 @@ public interface ExecuteOGCApi {
     @RequestMapping(value = "/ogcexecute/{instance_id}",
         produces = { "*/*" }, 
         method = RequestMethod.GET)
-    ResponseEntity<Object> tcsconnectionsOGCExecuteGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id);
+    ResponseEntity<Object> tcsconnectionsOGCExecuteGet(
+    	@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id,
+		@Parameter(in = ParameterIn.QUERY, description = "pluginId", schema = @Schema()) @Valid @RequestParam(value = "pluginId", required = false) String pluginId,
+		@Parameter(in = ParameterIn.QUERY, description = "input format for the plugin execution", schema = @Schema()) @Valid @RequestParam(value = "inputFormat", required = false) String inputFormat,
+		@Parameter(in = ParameterIn.QUERY, description = "output format requested", schema = @Schema()) @Valid @RequestParam(value = "format", required = false) String format
+    );
 
 }
 
