@@ -83,7 +83,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 
 		// If pluginId is specified in the request, we can assume that the distribution
 		// should be converted using that plugin and those formats
-		if (response.getId() != null || requestParams.containsKey("pluginId")) {
+		if (response.getId() != null && requestParams.containsKey("pluginId")) {
 			conversion = new JsonObject();
 			conversion.addProperty("distributionId", response.getId());
 			conversion.addProperty("plugin", requestParams.get("pluginId").toString());
