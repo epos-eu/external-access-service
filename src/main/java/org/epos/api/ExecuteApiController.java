@@ -1,13 +1,17 @@
 package org.epos.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.function.BiFunction;
 
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import io.swagger.v3.oas.annotations.media.Schema;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
 
 import org.apache.commons.lang3.StringUtils;
 import org.epos.api.beans.Distribution;
@@ -15,32 +19,27 @@ import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
 import org.epos.core.ExecuteItemGenerationJPA;
 import org.epos.core.ExternalAccessHandler;
-import org.epos.core.PluginGeneration;
 import org.epos.router_framework.domain.Actor;
 import org.epos.router_framework.domain.BuiltInActorType;
-import org.epos.router_framework.types.ServiceType;
 import org.epos.router_framework.domain.Response;
+import org.epos.router_framework.types.ServiceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
-import javax.validation.constraints.*;
-import javax.validation.Valid;
-import javax.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
-import java.util.function.BiFunction;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 @CrossOrigin(origins = "*", allowedHeaders = "*")
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-10-11T14:51:06.469Z[GMT]")
@@ -186,25 +185,14 @@ public class ExecuteApiController extends ApiController implements ExecuteApi {
 
 		JsonObject conversion = null;
 
-		if (response.getOperationid() != null || requestParams.containsKey("pluginId")) {
-			JsonObject conversionParameters = new JsonObject();
-			conversionParameters.addProperty("type", "plugins");
-			conversionParameters.addProperty("operation", response.getOperationid());
-
-			// TODO: update the converter, resources, external access to handle plugins only using the converter's database
-			JsonArray softwareConversionList = PluginGeneration.generate(new JsonObject(), conversionParameters, "plugin");
-			if (!softwareConversionList.isJsonNull() && softwareConversionList.size() > 0) {
-				conversion = new JsonObject();
-				// add the operation id so that the converter can guess the plugin id if it was not specified
-				if (response.getOperationid() != null)
-					conversion.addProperty("operation", response.getOperationid());
-				if (requestParams.containsKey("pluginId"))
-					conversion.addProperty("plugin", requestParams.get("pluginId").toString());
-				if (requestParams.containsKey("format"))
-					conversion.addProperty("responseContentType", requestParams.get("format").toString());
-				if (requestParams.containsKey("inputFormat"))
-					conversion.addProperty("requestContentType", requestParams.get("inputFormat").toString());
-			}
+		// If pluginId is specified in the request, we can assume that the distribution
+		// should be converted using that plugin and those formats
+		if (response.getId() != null && requestParams.containsKey("pluginId")) {
+			conversion = new JsonObject();
+			conversion.addProperty("distributionId", response.getId());
+			conversion.addProperty("plugin", requestParams.get("pluginId").toString());
+			conversion.addProperty("responseContentType", requestParams.get("format").toString());
+			conversion.addProperty("requestContentType", requestParams.get("inputFormat").toString());
 		}
 
 		Map<String, Object> handlerResponse = ExternalAccessHandler.handle(response, "execute", conversion,

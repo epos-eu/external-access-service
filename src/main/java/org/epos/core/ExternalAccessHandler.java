@@ -114,7 +114,7 @@ public class ExternalAccessHandler {
                 LOGGER.debug("Is not native GeoJSON or CovJSON");
                 try {
 					Map<String, String> parametersMap = new HashMap<>();
-					parametersMap.put("operationId", conversion.get("operation").getAsString());
+					parametersMap.put("distributionId", conversion.get("distributionId").getAsString());
 					parametersMap.put("pluginId", conversion.has("plugin") ? conversion.get("plugin").getAsString() : null);
 					// get the content type of the input to the converter from the parameters if
 					// there is, else use the request's body content type

@@ -1,13 +1,13 @@
 package org.epos.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import io.swagger.v3.oas.annotations.media.Schema;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
 
 import org.apache.commons.lang3.StringUtils;
 import org.epos.api.beans.Distribution;
@@ -15,7 +15,6 @@ import org.epos.api.beans.ErrorMessage;
 import org.epos.api.utility.Utils;
 import org.epos.core.ExecuteItemGenerationJPA;
 import org.epos.core.ExternalServicesRequest;
-import org.epos.core.PluginGeneration;
 import org.epos.router_framework.domain.Actor;
 import org.epos.router_framework.domain.BuiltInActorType;
 import org.epos.router_framework.domain.Response;
@@ -25,16 +24,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
-import javax.validation.constraints.*;
-import javax.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonObject;
+
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 @CrossOrigin(origins = "*", allowedHeaders = "*")
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.SpringCodegen", date = "2021-10-11T14:51:06.469Z[GMT]")
@@ -55,13 +55,22 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 	}
 
 	@Override
-	public ResponseEntity<Object> tcsconnectionsOGCExecuteGet(@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id) {
+	public ResponseEntity<Object> tcsconnectionsOGCExecuteGet(
+		@NotNull @Parameter(in = ParameterIn.PATH, description = "the id of item to be executed" ,required=true,schema=@Schema()) @PathVariable("instance_id") String id,
+		@Parameter(in = ParameterIn.QUERY, description = "pluginId", schema = @Schema()) @Valid @RequestParam(value = "pluginId", required = false) String pluginId,
+		@Parameter(in = ParameterIn.QUERY, description = "input format for the plugin execution", schema = @Schema()) @Valid @RequestParam(value = "inputFormat", required = false) String inputFormat,
+		@Parameter(in = ParameterIn.QUERY, description = "output format requested", schema = @Schema()) @Valid @RequestParam(value = "outputFormat", required = false) String outputFormat
+	) {
 
 		Map<String, Object> idMap = new HashMap<>();
 		idMap.put("id", id);
 
 		Map<String, Object> parametersMap = new HashMap<>();
 		parametersMap.put("query", request.getQueryString());
+
+		// Validate the parameters
+		if (pluginId != null && !(outputFormat != null) && !(inputFormat != null))
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 
 		return redirectRequest(ServiceType.EXTERNAL, idMap, parametersMap);
 	}
@@ -72,26 +81,14 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 		Response conversionResponse = null;
 		JsonObject conversion = null;
 
-		if(response.getOperationid()!=null) {
-			JsonObject conversionParameters = new JsonObject();
-			conversionParameters.addProperty("type", "plugins");
-			conversionParameters.addProperty("operation", response.getOperationid());
-
-			JsonArray softwareConversionList = PluginGeneration.generate(new JsonObject(), conversionParameters, "plugin");
-			if(!softwareConversionList.isJsonNull() && !softwareConversionList.isEmpty() && !softwareConversionList.get(0).isJsonNull()) {
-				JsonObject conversionInner = softwareConversionList.get(0).getAsJsonObject();
-				JsonObject singleConversion = new JsonObject();
-				singleConversion.addProperty("operation", response.getOperationid());
-				singleConversion.addProperty("requestContentType", conversionInner
-						.get("action").getAsJsonObject()
-						.get("object").getAsJsonObject()
-						.get("encodingFormat").getAsString());
-				singleConversion.addProperty("responseContentType", conversionInner
-						.get("action").getAsJsonObject()
-						.get("result").getAsJsonObject()
-						.get("encodingFormat").getAsString());
-				conversion = singleConversion;
-			}
+		// If pluginId is specified in the request, we can assume that the distribution
+		// should be converted using that plugin and those formats
+		if (response.getId() != null && requestParams.containsKey("pluginId")) {
+			conversion = new JsonObject();
+			conversion.addProperty("distributionId", response.getId());
+			conversion.addProperty("plugin", requestParams.get("pluginId").toString());
+			conversion.addProperty("responseContentType", requestParams.get("format").toString());
+			conversion.addProperty("requestContentType", requestParams.get("inputFormat").toString());
 		}
 
 		String compiledUrl = response.getServiceEndpoint().split("\\?")[0].replaceAll("\\?", "")+"?"+otherParams.get("query");

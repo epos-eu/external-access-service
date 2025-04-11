@@ -1,12 +1,33 @@
 package org.epos.core;
 
-import metadataapis.*;
-import org.epos.eposdatamodel.*;
-import org.epos.handler.dbapi.service.EntityManagerService;
+import static abstractapis.AbstractAPI.retrieveAPI;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static abstractapis.AbstractAPI.*;
+import org.epos.eposdatamodel.Address;
+import org.epos.eposdatamodel.Category;
+import org.epos.eposdatamodel.CategoryScheme;
+import org.epos.eposdatamodel.DataProduct;
+import org.epos.eposdatamodel.Distribution;
+import org.epos.eposdatamodel.Equipment;
+import org.epos.eposdatamodel.Facility;
+import org.epos.eposdatamodel.Identifier;
+import org.epos.eposdatamodel.Location;
+import org.epos.eposdatamodel.Mapping;
+import org.epos.eposdatamodel.Operation;
+import org.epos.eposdatamodel.Organization;
+import org.epos.eposdatamodel.PeriodOfTime;
+import org.epos.eposdatamodel.SoftwareApplication;
+import org.epos.eposdatamodel.SoftwareApplicationParameter;
+import org.epos.eposdatamodel.SoftwareSourceCode;
+import org.epos.eposdatamodel.WebService;
+import org.epos.handler.dbapi.service.EntityManagerService;
+
+import metadataapis.EntityNames;
 
 public class DatabaseConnections {
 
@@ -28,109 +49,308 @@ public class DatabaseConnections {
 	private List<Equipment> equipmentList;
 	private List<Facility> facilityList;
 
-	private DatabaseConnections() {}
+	// Lock for thread-safety
+	private static final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+	// Maximum number of concurrent connections (can be adjusted as needed)
+	private int maxDbConnections = 17;
+
+	private DatabaseConnections() {
+	}
 
 	public void syncDatabaseConnections() {
-		if(EntityManagerService.getInstance()!=null) EntityManagerService.getInstance().getCache().evictAll();
+		if (EntityManagerService.getInstance() != null) {
+			EntityManagerService.getInstance().getCache().evictAll();
+		}
 
-		List<DataProduct> tempDataproducts  = retrieveAPI(EntityNames.DATAPRODUCT.name()).retrieveAll();
-		List<SoftwareApplication> tempSoftwareApplications = retrieveAPI(EntityNames.SOFTWAREAPPLICATION.name()).retrieveAll();
-		List<SoftwareSourceCode> tempSoftwareSourceCodes = retrieveAPI(EntityNames.SOFTWARESOURCECODE.name()).retrieveAll();
-		List<SoftwareApplicationParameter> tempApplicationParameters = retrieveAPI(EntityNames.SOFTWAREAPPLICATIONOUTPUTPARAMETER.name()).retrieveAll();
-		List<Organization> tempOrganizationList = retrieveAPI(EntityNames.ORGANIZATION.name()).retrieveAll();
-		List<Category> tempCategoryList = retrieveAPI(EntityNames.CATEGORY.name()).retrieveAll();
-		List<CategoryScheme> tempCategorySchemeList = retrieveAPI(EntityNames.CATEGORYSCHEME.name()).retrieveAll();
-		List<Distribution> tempDistributionList = retrieveAPI(EntityNames.DISTRIBUTION.name()).retrieveAll();
-		List<Operation> tempOperationList = retrieveAPI(EntityNames.OPERATION.name()).retrieveAll();
-		List<WebService> tempWebServiceList = retrieveAPI(EntityNames.WEBSERVICE.name()).retrieveAll();
-		List<Address> tempAddressList = retrieveAPI(EntityNames.ADDRESS.name()).retrieveAll();
-		List<Location> tempLocationList = retrieveAPI(EntityNames.LOCATION.name()).retrieveAll();
-		List<PeriodOfTime> tempPeriodOfTimeList = retrieveAPI(EntityNames.PERIODOFTIME.name()).retrieveAll();
-		List<Identifier> tempIdentifierList = retrieveAPI(EntityNames.IDENTIFIER.name()).retrieveAll();
-		List<Mapping> tempMappingList = retrieveAPI(EntityNames.MAPPING.name()).retrieveAll();
-		List<Facility> tempFacilityList = retrieveAPI(EntityNames.FACILITY.name()).retrieveAll();
-		List<Equipment> tempEquipmentList = retrieveAPI(EntityNames.EQUIPMENT.name()).retrieveAll();
+		ExecutorService executor = Executors.newFixedThreadPool(maxDbConnections);
 
-		dataproducts = tempDataproducts;
-		softwareApplications = tempSoftwareApplications;
-		softwareSourceCodes = tempSoftwareSourceCodes;
-		softwareApplicationParameters = tempApplicationParameters;
-		organizationList = tempOrganizationList;
-		categoryList = tempCategoryList;
-		categorySchemesList = tempCategorySchemeList;
-		distributionList = tempDistributionList;
-		operationList = tempOperationList;
-		webServiceList = tempWebServiceList;
-		addressList = tempAddressList;
-		locationList = tempLocationList;
-		periodOfTimeList = tempPeriodOfTimeList;
-		identifierList = tempIdentifierList;
-		mappingList = tempMappingList;
-		facilityList = tempFacilityList;
-		equipmentList = tempEquipmentList;
+		// Submit each API query as a separate task
+		CompletableFuture<List<DataProduct>> tempDataproductsFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.DATAPRODUCT.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<SoftwareApplication>> tempSoftwareApplicationsFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.SOFTWAREAPPLICATION.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<SoftwareSourceCode>> tempSoftwareSourceCodesFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.SOFTWARESOURCECODE.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<SoftwareApplicationParameter>> tempApplicationParametersFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.SOFTWAREAPPLICATIONOUTPUTPARAMETER.name()).retrieveAll(),
+						executor);
+
+		CompletableFuture<List<Organization>> tempOrganizationListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.ORGANIZATION.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Category>> tempCategoryListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.CATEGORY.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<CategoryScheme>> tempCategorySchemeListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.CATEGORYSCHEME.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Distribution>> tempDistributionListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.DISTRIBUTION.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Operation>> tempOperationListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.OPERATION.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<WebService>> tempWebServiceListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.WEBSERVICE.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Address>> tempAddressListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.ADDRESS.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Location>> tempLocationListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.LOCATION.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<PeriodOfTime>> tempPeriodOfTimeListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.PERIODOFTIME.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Identifier>> tempIdentifierListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.IDENTIFIER.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Mapping>> tempMappingListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.MAPPING.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Facility>> tempFacilityListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.FACILITY.name()).retrieveAll(), executor);
+
+		CompletableFuture<List<Equipment>> tempEquipmentListFuture = CompletableFuture
+				.supplyAsync(() -> retrieveAPI(EntityNames.EQUIPMENT.name()).retrieveAll(), executor);
+
+		// Wait for all tasks to complete
+		CompletableFuture<Void> allFutures = CompletableFuture.allOf(
+				tempDataproductsFuture,
+				tempSoftwareApplicationsFuture,
+				tempSoftwareSourceCodesFuture,
+				tempApplicationParametersFuture,
+				tempOrganizationListFuture,
+				tempCategoryListFuture,
+				tempCategorySchemeListFuture,
+				tempDistributionListFuture,
+				tempOperationListFuture,
+				tempWebServiceListFuture,
+				tempAddressListFuture,
+				tempLocationListFuture,
+				tempPeriodOfTimeListFuture,
+				tempIdentifierListFuture,
+				tempMappingListFuture,
+				tempFacilityListFuture,
+				tempEquipmentListFuture);
+
+		allFutures.join();
+
+		// Retrieve the results
+		List<DataProduct> tempDataproducts = tempDataproductsFuture.join();
+		List<SoftwareApplication> tempSoftwareApplications = tempSoftwareApplicationsFuture.join();
+		List<SoftwareSourceCode> tempSoftwareSourceCodes = tempSoftwareSourceCodesFuture.join();
+		List<SoftwareApplicationParameter> tempApplicationParameters = tempApplicationParametersFuture.join();
+		List<Organization> tempOrganizationList = tempOrganizationListFuture.join();
+		List<Category> tempCategoryList = tempCategoryListFuture.join();
+		List<CategoryScheme> tempCategorySchemeList = tempCategorySchemeListFuture.join();
+		List<Distribution> tempDistributionList = tempDistributionListFuture.join();
+		List<Operation> tempOperationList = tempOperationListFuture.join();
+		List<WebService> tempWebServiceList = tempWebServiceListFuture.join();
+		List<Address> tempAddressList = tempAddressListFuture.join();
+		List<Location> tempLocationList = tempLocationListFuture.join();
+		List<PeriodOfTime> tempPeriodOfTimeList = tempPeriodOfTimeListFuture.join();
+		List<Identifier> tempIdentifierList = tempIdentifierListFuture.join();
+		List<Mapping> tempMappingList = tempMappingListFuture.join();
+		List<Facility> tempFacilityList = tempFacilityListFuture.join();
+		List<Equipment> tempEquipmentList = tempEquipmentListFuture.join();
+
+		// Atomically update the instance fields using a write lock
+		lock.writeLock().lock();
+		try {
+			dataproducts = tempDataproducts;
+			softwareApplications = tempSoftwareApplications;
+			softwareSourceCodes = tempSoftwareSourceCodes;
+			softwareApplicationParameters = tempApplicationParameters;
+			organizationList = tempOrganizationList;
+			categoryList = tempCategoryList;
+			categorySchemesList = tempCategorySchemeList;
+			distributionList = tempDistributionList;
+			operationList = tempOperationList;
+			webServiceList = tempWebServiceList;
+			addressList = tempAddressList;
+			locationList = tempLocationList;
+			periodOfTimeList = tempPeriodOfTimeList;
+			identifierList = tempIdentifierList;
+			mappingList = tempMappingList;
+			facilityList = tempFacilityList;
+			equipmentList = tempEquipmentList;
+		} finally {
+			lock.writeLock().unlock();
+		}
+
+		executor.shutdown();
 	}
 
 	private static DatabaseConnections connections;
 
 	public static DatabaseConnections getInstance() {
-		if(connections==null) connections = new DatabaseConnections();
-		return connections;
+		lock.readLock().lock();
+		try {
+			if (connections == null) {
+				connections = new DatabaseConnections();
+			}
+			return connections;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
+	// Getter methods, each guarded by a read lock
+
 	public List<DataProduct> getDataproducts() {
-		return dataproducts;
+		lock.readLock().lock();
+		try {
+			return dataproducts;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<SoftwareApplication> getSoftwareApplications() {
-		return softwareApplications;
+		lock.readLock().lock();
+		try {
+			return softwareApplications;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
-	public List<SoftwareSourceCode> getSoftwareSourceCodes() {return softwareSourceCodes;}
+	public List<SoftwareSourceCode> getSoftwareSourceCodes() {
+		lock.readLock().lock();
+		try {
+			return softwareSourceCodes;
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
-	public List<SoftwareApplicationParameter> getSoftwareApplicationParameters() {return softwareApplicationParameters;}
+	public List<SoftwareApplicationParameter> getSoftwareApplicationParameters() {
+		lock.readLock().lock();
+		try {
+			return softwareApplicationParameters;
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
 	public List<Organization> getOrganizationList() {
-		return organizationList;
+		lock.readLock().lock();
+		try {
+			return organizationList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<Category> getCategoryList() {
-		return categoryList;
+		lock.readLock().lock();
+		try {
+			return categoryList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
-	public List<CategoryScheme> getCategorySchemesList() {return categorySchemesList;}
+	public List<CategoryScheme> getCategorySchemesList() {
+		lock.readLock().lock();
+		try {
+			return categorySchemesList;
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
 	public List<Distribution> getDistributionList() {
-		return distributionList;
+		lock.readLock().lock();
+		try {
+			return distributionList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<Operation> getOperationList() {
-		return operationList;
+		lock.readLock().lock();
+		try {
+			return operationList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<WebService> getWebServiceList() {
-		return webServiceList;
+		lock.readLock().lock();
+		try {
+			return webServiceList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<Address> getAddressList() {
-		return addressList;
+		lock.readLock().lock();
+		try {
+			return addressList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<Location> getLocationList() {
-		return locationList;
+		lock.readLock().lock();
+		try {
+			return locationList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<PeriodOfTime> getPeriodOfTimeList() {
-		return periodOfTimeList;
+		lock.readLock().lock();
+		try {
+			return periodOfTimeList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
 	public List<Identifier> getIdentifierList() {
-		return identifierList;
+		lock.readLock().lock();
+		try {
+			return identifierList;
+		} finally {
+			lock.readLock().unlock();
+		}
 	}
 
-	public List<Mapping> getMappingList() { return mappingList;}
+	public List<Mapping> getMappingList() {
+		lock.readLock().lock();
+		try {
+			return mappingList;
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
-	public List<Facility> getFacilityList() { return facilityList;}
+	public List<Facility> getFacilityList() {
+		lock.readLock().lock();
+		try {
+			return facilityList;
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 
-	public List<Equipment> getEquipmentList() { return equipmentList;}
-
+	public List<Equipment> getEquipmentList() {
+		lock.readLock().lock();
+		try {
+			return equipmentList;
+		} finally {
+			lock.readLock().unlock();
+		}
+	}
 }
