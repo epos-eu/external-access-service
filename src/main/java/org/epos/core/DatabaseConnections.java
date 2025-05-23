@@ -58,9 +58,6 @@ public class DatabaseConnections {
 	}
 
 	public void syncDatabaseConnections() {
-		if (EntityManagerService.getInstance() != null) {
-			EntityManagerService.getInstance().getCache().evictAll();
-		}
 
 		ExecutorService executor = Executors.newFixedThreadPool(maxDbConnections);
 
