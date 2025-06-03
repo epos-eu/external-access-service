@@ -61,7 +61,6 @@ public class DatabaseConnections {
 
 		ExecutorService executor = Executors.newFixedThreadPool(maxDbConnections);
 
-		EntityManagerService.getInstance().getCache().evictAll();
 
 		// Submit each API query as a separate task
 		CompletableFuture<List<DataProduct>> tempDataproductsFuture = CompletableFuture
