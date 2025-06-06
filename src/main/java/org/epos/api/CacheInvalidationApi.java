@@ -42,7 +42,7 @@ public interface CacheInvalidationApi {
     @RequestMapping(value = "/invalidate",
         produces = { "application/json" }, 
         method = RequestMethod.POST)
-    ResponseEntity<Object> resourcesInvalidationCache(@Parameter(in = ParameterIn.PATH, description = "Pattern", required=true, schema=@Schema()) @PathVariable("pattern") String pattern);
+    ResponseEntity<Object> resourcesInvalidationCache();
 
 
 }

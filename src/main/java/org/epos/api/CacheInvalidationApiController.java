@@ -31,7 +31,7 @@ public class CacheInvalidationApiController extends ApiController implements Cac
 	}
 
 	@Override
-	public ResponseEntity<Object> resourcesInvalidationCache(String pattern) {
+	public ResponseEntity<Object> resourcesInvalidationCache() {
 		EposDataModelDAO.clearAllCaches();
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
