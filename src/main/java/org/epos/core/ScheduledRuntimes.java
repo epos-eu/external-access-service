@@ -1,5 +1,6 @@
 package org.epos.core;
 
+import dao.EposDataModelDAO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -26,6 +27,7 @@ public class ScheduledRuntimes {
 	@Async
 	public void connectionsUpdater() {
 		LOGGER.info("[Scheduled Task - Resources] Updating resources information");
+		EposDataModelDAO.clearAllCaches();
         DatabaseConnections.getInstance().syncDatabaseConnections();;
         LOGGER.info("[Scheduled Task - Resources] Resources successfully updated");
 	}
