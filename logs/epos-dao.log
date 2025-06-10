@@ -3348,3 +3348,55 @@ java.nio.file.NoSuchFileException: src/test/resources/response-payloads/vedur-is
 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2025-06-10 11:54:37 [background-preinit] INFO  o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.2.Final
+2025-06-10 11:54:37 [main] INFO  org.epos.Swagger2SpringBoot - Starting Swagger2SpringBoot using Java 21.0.7 with PID 119949 (/home/valerio/Documenti/services/external-access-service/target/classes started by valerio in /home/valerio/Documenti/services/external-access-service)
+2025-06-10 11:54:37 [main] INFO  org.epos.Swagger2SpringBoot - No active profile set, falling back to 1 default profile: "default"
+2025-06-10 11:54:37 [main] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+2025-06-10 11:54:37 [main] INFO  o.a.coyote.http11.Http11NioProtocol - Initializing ProtocolHandler ["http-nio-8080"]
+2025-06-10 11:54:37 [main] INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+2025-06-10 11:54:37 [main] INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/10.1.41]
+2025-06-10 11:54:37 [main] INFO  o.a.c.c.C.[.[.[/api/external-access-service/v1] - Initializing Spring embedded WebApplicationContext
+2025-06-10 11:54:37 [main] INFO  o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 657 ms
+2025-06-10 11:54:38 [main] INFO  org.epos.core.ScheduledRuntimes - [External Service Startup] -----------------------------------------------
+2025-06-10 11:54:38 [main] INFO  org.epos.core.ScheduledRuntimes - [StartUp Task - Resources] Updating facets information
+2025-06-10 11:54:38 [main] INFO  org.epos.core.ScheduledRuntimes - [Scheduled Task - Resources] Updating resources information
+2025-06-10 11:54:38 [main] INFO  dao.EposDataModelDAO - All caches cleared. Entries removed: 0
+2025-06-10 11:54:38 [main] INFO  org.epos.core.ScheduledRuntimes - [Scheduled Task - Resources] Resources successfully updated
+2025-06-10 11:54:38 [main] INFO  org.epos.core.ScheduledRuntimes - [StartUp Task - Resources] Done
+2025-06-10 11:54:38 [main] INFO  org.epos.core.ScheduledRuntimes - [External Service Startup Completed] -----------------------------------------------
+2025-06-10 11:54:38 [main] INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 1 endpoint beneath base path '/actuator'
+2025-06-10 11:54:38 [main] INFO  o.a.coyote.http11.Http11NioProtocol - Starting ProtocolHandler ["http-nio-8080"]
+2025-06-10 11:54:38 [main] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port 8080 (http) with context path '/api/external-access-service/v1'
+2025-06-10 11:54:38 [main] INFO  org.epos.Swagger2SpringBoot - Started Swagger2SpringBoot in 1.389 seconds (process running for 1.707)
+2025-06-10 11:54:38 [main] INFO  o.s.b.a.l.ConditionEvaluationReportLogger - 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2025-06-10 11:54:38 [task-1] INFO  org.epos.core.ScheduledRuntimes - [Scheduled Task - Resources] Updating resources information
+2025-06-10 11:54:38 [task-1] INFO  org.epos.core.ScheduledRuntimes - [Scheduled Task - Resources] Resources successfully updated
+2025-06-10 11:54:38 [main] ERROR o.s.boot.SpringApplication - Application run failed
+java.lang.IllegalArgumentException: Values for the following message broker parameters were not specified:
+Host; vHost; username; password
+	at org.epos.router_framework.RouterBase.validateMessageBrokerParams(RouterBase.java:312)
+	at org.epos.router_framework.RouterBase.init(RouterBase.java:88)
+	at org.epos.router_framework.DefaultRpcRouter.init(DefaultRpcRouter.java:80)
+	at org.epos.Swagger2SpringBoot.run(Swagger2SpringBoot.java:42)
+	at org.springframework.boot.SpringApplication.lambda$callRunner$5(SpringApplication.java:789)
+	at org.springframework.util.function.ThrowingConsumer$1.acceptWithException(ThrowingConsumer.java:82)
+	at org.springframework.util.function.ThrowingConsumer.accept(ThrowingConsumer.java:60)
+	at org.springframework.util.function.ThrowingConsumer$1.accept(ThrowingConsumer.java:86)
+	at org.springframework.boot.SpringApplication.callRunner(SpringApplication.java:797)
+	at org.springframework.boot.SpringApplication.callRunner(SpringApplication.java:788)
+	at org.springframework.boot.SpringApplication.lambda$callRunners$3(SpringApplication.java:773)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:184)
+	at java.base/java.util.stream.SortedOps$SizedRefSortingSink.end(SortedOps.java:357)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:510)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:151)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:174)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:596)
+	at org.springframework.boot.SpringApplication.callRunners(SpringApplication.java:773)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:325)
+	at org.epos.Swagger2SpringBoot.main(Swagger2SpringBoot.java:50)
+2025-06-10 11:54:38 [main] INFO  o.s.b.w.e.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2025-06-10 11:54:38 [tomcat-shutdown] INFO  o.s.b.w.e.tomcat.GracefulShutdown - Graceful shutdown complete
