@@ -19,7 +19,7 @@ stages:
  - opensource
 
 deploy:
-  image: maven:3.9.8-amazoncorretto-17-al2023
+  image: maven:3.9.8-amazoncorretto-21-al2023
   stage: install
   before_script: 
     - sed -i "s|VERSION|${CI_COMMIT_REF_NAME}|g" pom.xml

@@ -3,7 +3,7 @@ package org.epos.api;
 import java.util.Map;
 import java.util.Optional;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.epos.api.utility.Utils;
 import org.epos.api.utility.WebUtils;
