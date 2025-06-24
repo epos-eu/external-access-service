@@ -31,18 +31,24 @@ public class ExternalAccessHandler {
 			return responseMap;
 		}
 
+        Map<String, Object> responseMap = new HashMap<>();
+        HashMap<String, Object> parameters = new HashMap<>();
 
 		if (distr.getType().equals("DOWNLOADABLE_FILE")) {
 			try {
-				String compiledUrl = distr.getDownloadURL();
-				return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
+                try {
+                    responseMap.put("url",  distr.getDownloadURL());
+                    return responseMap;
+                } catch (Exception ex) {
+                    LOGGER.error("Issue raised " + ex.toString() + " sending back a 503 message");
+                    responseMap.put("httpStatusCode", "503");
+                    return responseMap;
+                }
 			} catch (Exception ex) {
 				LOGGER.error(ex.toString());
 				return null;
 			}
         }
-        HashMap<String, Object> parameters = new HashMap<>();
-        Map<String, Object> responseMap = new HashMap<>();
 
         if (distr.getParameters() != null) {
             distr.getParameters().forEach(p -> {
