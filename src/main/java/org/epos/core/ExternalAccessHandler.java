@@ -34,7 +34,7 @@ public class ExternalAccessHandler {
 
 		if (distr.getType().equals("DOWNLOADABLE_FILE")) {
 			try {
-				String compiledUrl = URLGeneration.ogcWFSChecker(distr.getServiceEndpoint());
+				String compiledUrl = distr.getDownloadURL();
 				return ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
 			} catch (Exception ex) {
 				LOGGER.error(ex.toString());
