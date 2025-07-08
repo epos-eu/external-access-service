@@ -137,7 +137,8 @@ public class ExecuteItemGenerationJPA {
 							}
 						}
 						if (sp.getValue() != null) {
-                            sp.setValue(URLEncoder.encode(sp.getValue(), StandardCharsets.UTF_8));
+							sp.setValue(sp.getValue());
+							//sp.setValue(URLEncoder.encode(sp.getValue(), StandardCharsets.UTF_8));
                         }
 
 						sp.setValuePattern(mp.getValuePattern());
