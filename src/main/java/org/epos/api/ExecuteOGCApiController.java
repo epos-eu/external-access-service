@@ -1,9 +1,7 @@
 package org.epos.api;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -169,7 +167,26 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 							.body(Utils.gson.toJsonTree(errorMessage).toString());
 				}
 
-				httpHeaders.add("Location", redirectUrl);
+
+                Enumeration<String> headerNames = request.getHeaderNames();
+                while (headerNames.hasMoreElements()) {
+                    String headerName = headerNames.nextElement();
+
+                    // Recupera tutti i valori per questo header (può avere valori multipli)
+                    Enumeration<String> headerValues = request.getHeaders(headerName);
+                    List<String> values = new ArrayList<>();
+
+                    while (headerValues.hasMoreElements()) {
+                        values.add(headerValues.nextElement());
+                    }
+
+                    // Aggiungi l'header con tutti i suoi valori
+                    httpHeaders.put(headerName, values);
+                }
+
+
+
+                httpHeaders.add("Location", redirectUrl);
 				httpHeaders.add("content-type", contentType);
 				return ResponseEntity.status(HttpStatus.FOUND)
 						.headers(httpHeaders)
@@ -180,8 +197,27 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 					compiledUrl.contains("GetMap") ||
 					compiledUrl.contains("GetTile")) {
 				httpHeaders = new HttpHeaders();
-				
-				httpHeaders.add("Location", compiledUrl);
+
+
+                Enumeration<String> headerNames = request.getHeaderNames();
+                while (headerNames.hasMoreElements()) {
+                    String headerName = headerNames.nextElement();
+
+                    // Recupera tutti i valori per questo header (può avere valori multipli)
+                    Enumeration<String> headerValues = request.getHeaders(headerName);
+                    List<String> values = new ArrayList<>();
+
+                    while (headerValues.hasMoreElements()) {
+                        values.add(headerValues.nextElement());
+                    }
+
+                    // Aggiungi l'header con tutti i suoi valori
+                    httpHeaders.put(headerName, values);
+                }
+
+
+
+                httpHeaders.add("Location", compiledUrl);
 				httpHeaders.add("content-type", ExternalServicesRequest.getInstance().getContentType(compiledUrl));
 				LOGGER.info("Http headers: "+httpHeaders.toString());
 				LOGGER.info("Compiled URL: "+compiledUrl.toString());
