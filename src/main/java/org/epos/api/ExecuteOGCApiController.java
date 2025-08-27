@@ -154,7 +154,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
                     httpHeaders.put(key,headersTemp.get(key));
                 }
 
-                return ResponseEntity.status(HttpStatus.valueOf(ExternalServicesRequest.getInstance().getHttpStatusCode(compiledUrl)))
+                return ResponseEntity.status(HttpStatus.OK)
                         .headers(httpHeaders)
                         .body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
 			}
@@ -169,7 +169,7 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
                     httpHeaders.put(key,headersTemp.get(key));
                 }
 
-				return ResponseEntity.status(HttpStatus.valueOf(ExternalServicesRequest.getInstance().getHttpStatusCode(compiledUrl)))
+				return ResponseEntity.status(HttpStatus.OK)
 						.headers(httpHeaders)
 						.body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
 				
