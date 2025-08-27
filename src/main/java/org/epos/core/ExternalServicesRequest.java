@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.http.HttpHeaders;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -21,6 +22,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
+import okhttp3.Headers;
 import org.epos.core.ssl.CustomSSLSocketFactory;
 import org.epos.core.ssl.LenientX509TrustManager;
 import org.slf4j.Logger;

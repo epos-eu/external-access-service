@@ -148,15 +148,19 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 
 			if(compiledUrl.contains("GetFeatureInfo") && conversion==null){
                 httpHeaders = new HttpHeaders();
+
                 Map<String, List<String>> headersTemp = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
 
                 for(String key : headersTemp.keySet()) {
                     httpHeaders.put(key,headersTemp.get(key));
                 }
 
+
+                String responsePayload = ExternalServicesRequest.getInstance().requestPayload(compiledUrl);
+
                 return ResponseEntity.status(HttpStatus.OK)
                         .headers(httpHeaders)
-                        .body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
+                        .body(responsePayload);
 			}
 			
 			if(compiledUrl.contains("GetCapabilities") ||
