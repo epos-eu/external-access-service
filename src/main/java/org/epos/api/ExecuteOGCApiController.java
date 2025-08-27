@@ -107,9 +107,16 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			}
 		}
 
-
-		for(String key : headers.keySet()) {
-			httpHeaders.put(key,headers.get(key));
+		// Copy upstream headers except any CORS-related ones to avoid duplicates with
+		// @CrossOrigin
+		for (String key : headers.keySet()) {
+			if (key == null)
+				continue;
+			String lowerKey = key.toLowerCase();
+			if (lowerKey.startsWith("access-control-")) {
+				continue;
+			}
+			httpHeaders.put(key, headers.get(key));
 		}
 
 		try {
