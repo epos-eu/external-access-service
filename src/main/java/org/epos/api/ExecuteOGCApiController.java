@@ -147,83 +147,31 @@ public class ExecuteOGCApiController extends ApiController implements ExecuteOGC
 			}
 
 			if(compiledUrl.contains("GetFeatureInfo") && conversion==null){
-				LOGGER.debug("Redirect GetFeatureInfo");
+                httpHeaders = new HttpHeaders();
+                Map<String, List<String>> headersTemp = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
 
-				Map<String,Object> handlerResponse = ExternalServicesRequest.getInstance().getRedirect(compiledUrl);
-
-				int _httpStatusCode = Integer.parseInt((String) handlerResponse.get("httpStatusCode"));
-				HttpStatus httpStatusCode = HttpStatus.valueOf(_httpStatusCode);
-
-				String redirectUrl = (String) handlerResponse.get("redirect-url");	
-				String contentType = (String) handlerResponse.get("content-type");
-				if (StringUtils.isBlank(redirectUrl) || StringUtils.isBlank(contentType)) {
-					ErrorMessage errorMessage = new ErrorMessage();
-					errorMessage.setMessage("Error on get redirect url of an external webservice: "+response.getDistributionid()+ " causing "+httpStatusCode);
-					errorMessage.setHttpCode(handlerResponse.get("httpStatusCode").toString());
-					if(handlerResponse.containsKey("redirect-url")) errorMessage.setUrl(handlerResponse.get("redirect-url").toString());
-					if(handlerResponse.containsKey("content-type")) errorMessage.setContentType(handlerResponse.get("content-type").toString());
-					return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-							.headers(httpHeaders)
-							.body(Utils.gson.toJsonTree(errorMessage).toString());
-				}
-
-
-                Enumeration<String> headerNames = request.getHeaderNames();
-                while (headerNames.hasMoreElements()) {
-                    String headerName = headerNames.nextElement();
-
-                    // Recupera tutti i valori per questo header (può avere valori multipli)
-                    Enumeration<String> headerValues = request.getHeaders(headerName);
-                    List<String> values = new ArrayList<>();
-
-                    while (headerValues.hasMoreElements()) {
-                        values.add(headerValues.nextElement());
-                    }
-
-                    // Aggiungi l'header con tutti i suoi valori
-                    httpHeaders.put(headerName, values);
+                for(String key : headersTemp.keySet()) {
+                    httpHeaders.put(key,headersTemp.get(key));
                 }
 
-
-
-                httpHeaders.add("Location", redirectUrl);
-				httpHeaders.add("content-type", contentType);
-				return ResponseEntity.status(HttpStatus.FOUND)
-						.headers(httpHeaders)
-						.body(new JsonObject().toString());
+                return ResponseEntity.status(HttpStatus.valueOf(ExternalServicesRequest.getInstance().getHttpStatusCode(compiledUrl)))
+                        .headers(httpHeaders)
+                        .body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
 			}
 			
 			if(compiledUrl.contains("GetCapabilities") ||
 					compiledUrl.contains("GetMap") ||
 					compiledUrl.contains("GetTile")) {
 				httpHeaders = new HttpHeaders();
+                Map<String, List<String>> headersTemp = ExternalServicesRequest.getInstance().requestHeaders(compiledUrl);
 
-
-                Enumeration<String> headerNames = request.getHeaderNames();
-                while (headerNames.hasMoreElements()) {
-                    String headerName = headerNames.nextElement();
-
-                    // Recupera tutti i valori per questo header (può avere valori multipli)
-                    Enumeration<String> headerValues = request.getHeaders(headerName);
-                    List<String> values = new ArrayList<>();
-
-                    while (headerValues.hasMoreElements()) {
-                        values.add(headerValues.nextElement());
-                    }
-
-                    // Aggiungi l'header con tutti i suoi valori
-                    httpHeaders.put(headerName, values);
+                for(String key : headersTemp.keySet()) {
+                    httpHeaders.put(key,headersTemp.get(key));
                 }
 
-
-
-                httpHeaders.add("Location", compiledUrl);
-				httpHeaders.add("content-type", ExternalServicesRequest.getInstance().getContentType(compiledUrl));
-				LOGGER.info("Http headers: "+httpHeaders.toString());
-				LOGGER.info("Compiled URL: "+compiledUrl.toString());
-				return ResponseEntity.status(HttpStatus.FOUND)
+				return ResponseEntity.status(HttpStatus.valueOf(ExternalServicesRequest.getInstance().getHttpStatusCode(compiledUrl)))
 						.headers(httpHeaders)
-						.body(new JsonObject().toString());
+						.body(ExternalServicesRequest.getInstance().requestPayload(compiledUrl));
 				
 			}
 /*
